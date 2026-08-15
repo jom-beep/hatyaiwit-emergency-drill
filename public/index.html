@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#8b1e2d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="HYW Safety Drill" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <title>ระบบฝึกซ้อมแจ้งเหตุฉุกเฉิน</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="drill-ribbon">DRILL ONLY · ระบบฝึกซ้อมเท่านั้น · ไม่ใช่เหตุจริง</div>
+    <header class="topbar">
+      <div class="brand">
+        <img src="/icon.svg" alt="" width="44" height="44" />
+        <div>
+          <h1 id="school-name">ระบบแจ้งเหตุฉุกเฉิน</h1>
+          <p>Emergency Drill Notification</p>
+        </div>
+      </div>
+      <div class="account">
+        <span id="account-label">ยังไม่ได้เข้าสู่ระบบ</span>
+        <button id="logout-button" class="button ghost hidden" type="button">ออกจากระบบ</button>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section id="login-panel" class="card login-card">
+        <span class="eyebrow">บัญชีโรงเรียนเท่านั้น</span>
+        <h2>เข้าสู่ระบบเพื่อรับการแจ้งเตือน</h2>
+        <p>รองรับเฉพาะบัญชี <strong>@hatyaiwit.ac.th</strong> ระบบไม่เก็บรหัสผ่าน Google</p>
+        <a class="button primary wide" href="/auth/login">เข้าสู่ระบบด้วย Google Workspace</a>
+      </section>
+
+      <div id="app-panel" class="hidden">
+        <section id="incident-panel" class="incident-panel idle" aria-live="assertive">
+          <div>
+            <span id="incident-mode" class="pill">พร้อมรับแจ้งเตือน</span>
+            <h2 id="incident-title">ขณะนี้ไม่มีการฝึกซ้อม</h2>
+            <p id="incident-instruction">ระบบกำลังเชื่อมต่อกับศูนย์ควบคุม</p>
+            <small id="incident-meta"></small>
+          </div>
+          <div id="incident-actions" class="incident-actions hidden">
+            <button id="ack-button" class="button success" type="button">รับทราบ</button>
+            <button id="help-button" class="button danger-outline" type="button">ต้องการความช่วยเหลือ</button>
+          </div>
+        </section>
+
+        <div class="grid two-columns">
+          <section class="card">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">ความพร้อมของเครื่อง</span>
+                <h2>ตรวจสอบการรับแจ้งเตือน</h2>
+              </div>
+              <span id="readiness-score" class="score">0/3</span>
+            </div>
+            <ul class="checklist">
+              <li id="check-install"><span class="status-dot"></span><span>ติดตั้งบนหน้าจอหลัก</span></li>
+              <li id="check-notification"><span class="status-dot"></span><span>อนุญาตการแจ้งเตือน</span></li>
+              <li id="check-subscription"><span class="status-dot"></span><span>ลงทะเบียนอุปกรณ์แล้ว</span></li>
+            </ul>
+            <label for="device-zone">พื้นที่ประจำของอุปกรณ์</label>
+            <select id="device-zone"></select>
+            <button id="enable-push" class="button primary wide" type="button">เปิดการแจ้งเตือนเครื่องนี้</button>
+            <p id="ios-help" class="note hidden">สำหรับ iPhone/iPad ให้เพิ่มเว็บไปยังหน้าจอโฮมก่อน แล้วเปิดจากไอคอนที่ติดตั้ง</p>
+          </section>
+
+          <section class="card">
+            <span class="eyebrow">รายงานให้ศูนย์ควบคุม</span>
+            <h2>รายงานสิ่งผิดปกติ</h2>
+            <form id="report-form">
+              <label for="report-type">ประเภท</label>
+              <select id="report-type" required>
+                <option value="SUSPICIOUS">บุคคลหรือเหตุการณ์น่าสงสัย</option>
+                <option value="VIOLENCE">เหตุความรุนแรง</option>
+                <option value="WEAPON">พบสิ่งที่อาจเป็นอาวุธ</option>
+                <option value="MEDICAL">เหตุฉุกเฉินทางการแพทย์</option>
+                <option value="OTHER">อื่น ๆ</option>
+              </select>
+              <label for="report-zone">พื้นที่</label>
+              <select id="report-zone" required></select>
+              <label for="report-note">รายละเอียดสั้น ๆ</label>
+              <textarea id="report-note" maxlength="300" rows="3" placeholder="ระบุสถานที่และสิ่งที่พบ โดยไม่เสี่ยงเข้าใกล้เหตุ"></textarea>
+              <button class="button warning wide" type="submit">ส่งรายงานให้ศูนย์ควบคุม</button>
+            </form>
+            <p class="note">การส่งรายงานไม่ใช่การประกาศทั้งโรงเรียน หากเป็นอันตรายเร่งด่วนให้ใช้ช่องทางฉุกเฉินของโรงเรียนและโทร 191</p>
+          </section>
+        </div>
+
+        <section id="rollcall-panel" class="card hidden">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">สำหรับครูประจำห้อง</span>
+              <h2>เช็กชื่อรายห้อง</h2>
+            </div>
+            <span id="rollcall-progress" class="score">0/0</span>
+          </div>
+          <p class="note">ส่งได้หลายครั้ง ค่าล่าสุดจะทับของเดิม ศูนย์ควบคุมเห็นทันที</p>
+          <form id="rollcall-form">
+            <label for="rollcall-room">ห้อง</label>
+            <select id="rollcall-room" required></select>
+            <div class="grid rollcall-fields">
+              <div>
+                <label for="rollcall-present">อยู่ในห้อง</label>
+                <input id="rollcall-present" type="number" min="0" max="500" value="0" required />
+              </div>
+              <div>
+                <label for="rollcall-injured">บาดเจ็บ</label>
+                <input id="rollcall-injured" type="number" min="0" max="500" value="0" />
+              </div>
+              <div>
+                <label for="rollcall-missing">ยังหาไม่พบ</label>
+                <input id="rollcall-missing" type="number" min="0" max="500" value="0" />
+              </div>
+            </div>
+            <label class="checkbox-row">
+              <input id="rollcall-secured" type="checkbox" checked />
+              <span>ล็อกประตูและปิดไฟเรียบร้อยแล้ว</span>
+            </label>
+            <label for="rollcall-note">หมายเหตุ</label>
+            <input id="rollcall-note" maxlength="200" placeholder="เช่น มีนักเรียนห้องอื่นมาหลบด้วย 4 คน" />
+            <button class="button success wide" type="submit">ส่งผลเช็กชื่อ</button>
+          </form>
+        </section>
+
+        <section class="card compact">
+          <details>
+            <summary>มีรหัสเชิญสำหรับบทบาทพิเศษ</summary>
+            <form id="invite-form" class="inline-form">
+              <label class="sr-only" for="invite-token">รหัสเชิญ</label>
+              <input id="invite-token" type="password" autocomplete="one-time-code" placeholder="กรอกรหัสเชิญครั้งเดียว" />
+              <button class="button secondary" type="submit">ยืนยันรหัส</button>
+            </form>
+            <form id="teacher-form" class="inline-form">
+              <label class="sr-only" for="teacher-code">รหัสยืนยันบทบาทครู</label>
+              <input id="teacher-code" type="password" autocomplete="one-time-code" placeholder="รหัสยืนยันบทบาทครูประจำห้อง" />
+              <button class="button ghost" type="submit">ยืนยันเป็นครู</button>
+            </form>
+          </details>
+        </section>
+
+        <section id="commander-panel" class="card commander hidden">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">พื้นที่ควบคุมลับ</span>
+              <h2>เริ่มการฝึกซ้อม</h2>
+            </div>
+            <span class="pill commander-pill">AUTHORIZED</span>
+          </div>
+          <div class="grid commander-fields">
+            <div>
+              <label for="drill-type">รูปแบบการฝึกซ้อม</label>
+              <select id="drill-type">
+                <option value="LOCKDOWN">ปิดพื้นที่</option>
+                <option value="EVACUATE">อพยพ</option>
+                <option value="SHELTER">อยู่ในพื้นที่ปลอดภัย</option>
+                <option value="MEDICAL">เหตุการแพทย์</option>
+                <option value="INFORMATION">ประกาศทั่วไป</option>
+              </select>
+            </div>
+            <div>
+              <label for="drill-zone">พื้นที่รับประกาศ</label>
+              <select id="drill-zone"></select>
+            </div>
+          </div>
+          <label for="drill-instruction">คำแนะนำที่โรงเรียนอนุมัติ</label>
+          <textarea id="drill-instruction" rows="3" maxlength="240">นี่คือการฝึกซ้อม กรุณาปฏิบัติตามแผนฉุกเฉินของโรงเรียนและรอคำแนะนำเพิ่มเติม</textarea>
+          <div class="hold-wrap">
+            <button id="activate-drill" class="button hold-button" type="button">
+              <span>กดค้าง 3 วินาทีเพื่อเริ่ม DRILL</span>
+              <i></i>
+            </button>
+            <p>ปล่อยมือก่อนครบเวลาเพื่อยกเลิก</p>
+          </div>
+          <button id="resolve-drill" class="button secondary wide hidden" type="button">ยืนยันการยุติการฝึกซ้อม</button>
+          <p class="note">การยุติการฝึกซ้อมต้องได้รับการยืนยันจากผู้มีสิทธิ์ 2 คนที่แตกต่างกัน</p>
+        </section>
+
+        <section id="dashboard-panel" class="card commander hidden">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">ศูนย์ควบคุม</span>
+              <h2>ภาพรวมการส่งข้อความ</h2>
+            </div>
+            <button id="refresh-dashboard" class="button ghost" type="button">รีเฟรช</button>
+          </div>
+          <div class="metrics">
+            <div><strong id="metric-ready">–</strong><span>อุปกรณ์พร้อม</span></div>
+            <div><strong id="metric-sent">–</strong><span>ส่ง Push สำเร็จ</span></div>
+            <div><strong id="metric-ack">–</strong><span>รับทราบ</span></div>
+            <div><strong id="metric-help">–</strong><span>ต้องการช่วยเหลือ</span></div>
+            <div><strong id="metric-rooms">–</strong><span>ห้องที่รายงานแล้ว</span></div>
+            <div><strong id="metric-missing">–</strong><span>ยังหาไม่พบ</span></div>
+          </div>
+          <div id="rollcall-board" class="rollcall-board"></div>
+        </section>
+
+        <section id="roster-panel" class="card commander hidden">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">การหมุนเวียนผู้ประกาศ</span>
+              <h2>จัดการสิทธิ์ผู้ประกาศ</h2>
+            </div>
+            <span id="roster-capacity" class="pill">–</span>
+          </div>
+          <p class="note">แสดงเป็นป้ายเรียกเท่านั้น ระบบไม่เก็บและไม่แสดงอีเมลหรือชื่อจริงของผู้ประกาศ</p>
+          <ul id="roster-list" class="roster-list"></ul>
+          <div class="inline-form">
+            <input id="revoke-callsign" maxlength="9" placeholder="CMD-XXXXX" />
+            <button id="revoke-button" class="button danger-outline" type="button">ถอดถอน</button>
+            <button id="reinvite-button" class="button secondary" type="button">ออกรหัสเชิญทดแทน</button>
+          </div>
+          <p class="note">การถอดถอนผู้อื่นต้องได้รับการอนุมัติจากผู้ประกาศ 2 คนที่ต่างกัน ถอดถอนตัวเองทำได้ทันที</p>
+        </section>
+      </div>
+    </main>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+  </body>
+</html>

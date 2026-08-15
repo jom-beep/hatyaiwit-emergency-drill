@@ -1,0 +1,74 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hatyaiwit-emergency-drill",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  },
+  "vars": {
+    "ALLOWED_GOOGLE_DOMAIN": "hatyaiwit.ac.th",
+    "DEPLOYMENT_MODE": "DRILL",
+    "SCHOOL_NAME": "โรงเรียนหาดใหญ่วิทยาลัย",
+    "PUBLIC_ORIGIN": "http://localhost:8787",
+    "COOKIE_SECURE": "false",
+    "LOG_RETENTION_DAYS": "90",
+    "SUBSCRIPTION_STALE_DAYS": "180"
+  },
+  // 19:00 UTC = 02:00 ตามเวลาไทย — งานล้างข้อมูลรายวัน (ข้อ 5)
+  "triggers": {
+    "crons": ["0 19 * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hatyaiwit-emergency-drill",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "INCIDENT_COORDINATOR",
+        "class_name": "IncidentCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["IncidentCoordinator"]
+    }
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "FANOUT_QUEUE", "queue": "hatyaiwit-alert-fanout" },
+      { "binding": "PUSH_QUEUE", "queue": "hatyaiwit-alert-push" }
+    ],
+    "consumers": [
+      {
+        "queue": "hatyaiwit-alert-fanout",
+        "max_batch_size": 10,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "dead_letter_queue": "hatyaiwit-alert-dlq",
+        "max_concurrency": 20
+      },
+      {
+        "queue": "hatyaiwit-alert-push",
+        "max_batch_size": 50,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "dead_letter_queue": "hatyaiwit-alert-dlq",
+        "max_concurrency": 80
+      }
+    ]
+  },
+  "observability": {
+    "enabled": true
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "ระบบฝึกซ้อมแจ้งเหตุฉุกเฉิน โรงเรียนหาดใหญ่วิทยาลัย",
+  "short_name": "HYW Safety",
+  "description": "ระบบฝึกซ้อมการแจ้งเหตุฉุกเฉินสำหรับโรงเรียนหาดใหญ่วิทยาลัย",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#8b1e2d",
+  "lang": "th",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

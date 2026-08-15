@@ -1,0 +1,10 @@
+# Copy to .dev.vars for local development. Never commit real values.
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+SESSION_SECRET="generate-at-least-32-random-bytes"
+IDENTITY_HMAC_SECRET="generate-a-different-32-byte-secret"
+BOOTSTRAP_CODE="one-time-setup-code"
+VAPID_PUBLIC_KEY=""
+VAPID_PRIVATE_KEY=""
+VAPID_SUBJECT="mailto:safety-admin@hatyaiwit.ac.th"
+TEACHER_CODE="code-for-staff-meeting"
