@@ -3,30 +3,33 @@
   "name": "hatyaiwit-emergency-drill",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-15",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "none"
   },
   "vars": {
-    "ALLOWED_GOOGLE_DOMAIN": "hatyaiwit.ac.th",
+    "ALLOWED_GOOGLE_DOMAIN": "khanchai.ac.th",
     "DEPLOYMENT_MODE": "DRILL",
-    "SCHOOL_NAME": "โรงเรียนหาดใหญ่วิทยาลัย",
-    "PUBLIC_ORIGIN": "http://localhost:8787",
-    "COOKIE_SECURE": "false",
+    "SCHOOL_NAME": "โรงเรียนหาดใหญ่วิทยาลัย(TEST)",
+    "PUBLIC_ORIGIN": "https://hatyaiwit-emergency-drill.kokait.workers.dev",
+    "COOKIE_SECURE": "true",
     "LOG_RETENTION_DAYS": "90",
     "SUBSCRIPTION_STALE_DAYS": "180"
   },
-  // 19:00 UTC = 02:00 ตามเวลาไทย — งานล้างข้อมูลรายวัน (ข้อ 5)
   "triggers": {
-    "crons": ["0 19 * * *"]
+    "crons": [
+      "0 19 * * *"
+    ]
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "hatyaiwit-emergency-drill",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "778ff28e-ac9e-4ac2-bf0c-97baf6177579",
       "migrations_dir": "migrations"
     }
   ],
@@ -41,13 +44,21 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["IncidentCoordinator"]
+      "new_sqlite_classes": [
+        "IncidentCoordinator"
+      ]
     }
   ],
   "queues": {
     "producers": [
-      { "binding": "FANOUT_QUEUE", "queue": "hatyaiwit-alert-fanout" },
-      { "binding": "PUSH_QUEUE", "queue": "hatyaiwit-alert-push" }
+      {
+        "binding": "FANOUT_QUEUE",
+        "queue": "hatyaiwit-alert-fanout"
+      },
+      {
+        "binding": "PUSH_QUEUE",
+        "queue": "hatyaiwit-alert-push"
+      }
     ],
     "consumers": [
       {

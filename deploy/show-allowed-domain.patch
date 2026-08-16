@@ -1,0 +1,25 @@
+diff -ruN a/public/app.js dom/public/app.js
+--- a/public/app.js	2026-08-15 18:50:06.673000783 +0700
++++ b/public/app.js	2026-08-15 19:39:56.032000473 +0700
+@@ -510,6 +510,9 @@
+   try {
+     state.config = await api("/api/config");
+     $("#school-name").textContent = state.config.schoolName;
++    // แสดงโดเมนที่อนุญาตจากค่าจริงของเซิร์ฟเวอร์ ไม่ฝังไว้ในหน้าเว็บ
++    // ทำให้สลับโดเมนทดลองกับโดเมนใช้งานจริงได้โดยแก้แค่ wrangler.jsonc
++    $("#allowed-domain").textContent = "@" + state.config.googleDomain;
+     fillZones();
+   } catch (error) {
+     toast(error.message);
+diff -ruN a/public/index.html dom/public/index.html
+--- a/public/index.html	2026-08-15 18:49:19.547000760 +0700
++++ b/public/index.html	2026-08-15 19:39:56.031000473 +0700
+@@ -33,7 +33,7 @@
+       <section id="login-panel" class="card login-card">
+         <span class="eyebrow">บัญชีโรงเรียนเท่านั้น</span>
+         <h2>เข้าสู่ระบบเพื่อรับการแจ้งเตือน</h2>
+-        <p>รองรับเฉพาะบัญชี <strong>@hatyaiwit.ac.th</strong> ระบบไม่เก็บรหัสผ่าน Google</p>
++        <p>รองรับเฉพาะบัญชี <strong id="allowed-domain">@hatyaiwit.ac.th</strong> ระบบไม่เก็บรหัสผ่าน Google</p>
+         <a class="button primary wide" href="/auth/login">เข้าสู่ระบบด้วย Google Workspace</a>
+       </section>
+ 
