@@ -19,8 +19,8 @@ import {
 import { handleQueue } from "./push";
 import { audit } from "./audit";
 import { runMaintenance } from "./maintenance";
-import { callSignFor, claimTeacherRole, commanderRoster, reinviteCommander, revokeCommander } from "./roles";
-import { rollCallSummary, rollCallView, submitRollCall } from "./rollcall";
+import { callSignFor, commanderRoster, reinviteCommander, revokeCommander } from "./roles";
+import { claimReport, openReports, startEscalation } from "./escalation";
 export { IncidentCoordinator } from "./incident-object";
 
 const ALERT_TYPES = new Set(["LOCKDOWN", "EVACUATE", "SHELTER", "MEDICAL", "INFORMATION"]);
@@ -96,7 +96,14 @@ async function redeemCommanderInvite(request: Request, env: Env, user: Authentic
   if ((results[0]!.meta.changes ?? 0) !== 1) throw new HttpError(409, "รหัสถูกใช้แล้วหรือหมดอายุ");
   // ข้อ 4: ตั้งป้ายเรียกให้ผู้ประกาศ เพื่อให้อ้างถึงกันได้โดยไม่ต้องเปิดเผยอีเมล
   const callSign = await callSignFor(user.identityHash);
-  await env.DB.prepare("UPDATE users SET call_sign = ? WHERE identity_hash = ? AND role = 'commander'")
+  await env.DB.prepare(
+    `UPDATE users SET call_sign = ?,
+       commander_order = COALESCE(
+         commander_order,
+         (SELECT COALESCE(MAX(commander_order), 0) + 1 FROM users WHERE role = 'commander' AND active = 1)
+       )
+     WHERE identity_hash = ? AND role = 'commander'`,
+  )
     .bind(callSign, user.identityHash)
     .run();
   await audit(env, user, "REDEEM_COMMANDER_INVITE", "user", callSign);
@@ -167,6 +174,8 @@ async function createReport(request: Request, env: Env, user: AuthenticatedUser)
     .bind(id, user.identityHash, input.type, zone, String(input.note ?? "").trim().slice(0, 300), now)
     .run();
   await audit(env, user, "CREATE_REPORT", "report", id, { type: input.type, zone });
+  // ปลุกผู้ประกาศทันที แล้วไล่ไปคนถัดไปถ้าไม่มีใครรับเรื่อง
+  await startEscalation(env, id);
   return json({ ok: true, reportId: id, status: "NEW" }, { status: 201 });
 }
 
@@ -362,8 +371,7 @@ async function dashboard(env: Env, user: AuthenticatedUser): Promise<Response> {
       .bind(active.incident.id)
       .all();
   }
-  const rollCall = active.incident ? await rollCallSummary(env, active.incident.id) : null;
-  return json({ incident: active.incident, devices: deviceCounts, delivery, acknowledgement, rollCall });
+  return json({ incident: active.incident, devices: deviceCounts, delivery, acknowledgement });
 }
 
 async function api(request: Request, env: Env): Promise<Response> {
@@ -374,11 +382,16 @@ async function api(request: Request, env: Env): Promise<Response> {
       schoolName: env.SCHOOL_NAME,
       mode: env.DEPLOYMENT_MODE,
       googleDomain: env.ALLOWED_GOOGLE_DOMAIN,
+      version: env.APP_VERSION ?? "dev",
       vapidPublicKey: env.VAPID_PUBLIC_KEY,
       zones: zones.results,
     });
   }
   if (request.method === "GET" && url.pathname === "/api/health") return json({ ok: true, mode: "DRILL" });
+  // เบาที่สุดเท่าที่ทำได้ ไม่แตะฐานข้อมูล เพราะทุกเครื่องเรียกเป็นระยะ
+  if (request.method === "GET" && url.pathname === "/api/version") {
+    return json({ version: env.APP_VERSION ?? "dev" });
+  }
   const user = await authenticate(request, env);
 
   if (request.method === "GET" && url.pathname === "/api/me") {
@@ -419,16 +432,15 @@ async function api(request: Request, env: Env): Promise<Response> {
     await body<Record<string, never>>(request);
     return reinviteCommander(env, user);
   }
+  if (request.method === "GET" && url.pathname === "/api/reports/open") return openReports(env, user);
+  const claim = url.pathname.match(/^\/api\/reports\/([\w-]+)\/claim$/);
+  if (request.method === "POST" && claim) {
+    await body<Record<string, never>>(request);
+    return claimReport(claim[1]!, env, user);
+  }
   if (request.method === "GET" && url.pathname === "/api/commander/roster") {
     return commanderRoster(env, user);
   }
-  if (request.method === "POST" && url.pathname === "/api/roles/teacher") {
-    return claimTeacherRole(await body<{ code?: string }>(request), env, user);
-  }
-  if (request.method === "POST" && url.pathname === "/api/rollcall") {
-    return submitRollCall(await body(request), env, user);
-  }
-  if (request.method === "GET" && url.pathname === "/api/rollcall") return rollCallView(env, user);
   if (request.method === "GET" && url.pathname === "/api/ws") {
     return coordinator(env).fetch(new Request("https://incident.internal/connect", request));
   }

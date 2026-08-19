@@ -18,7 +18,9 @@
     "PUBLIC_ORIGIN": "https://hatyaiwit-emergency-drill.kokait.workers.dev",
     "COOKIE_SECURE": "true",
     "LOG_RETENTION_DAYS": "90",
-    "SUBSCRIPTION_STALE_DAYS": "180"
+    "SUBSCRIPTION_STALE_DAYS": "180",
+    "APP_VERSION": "0.4.1",
+    "ESCALATION_STEP_SECONDS": "30"
   },
   "triggers": {
     "crons": [

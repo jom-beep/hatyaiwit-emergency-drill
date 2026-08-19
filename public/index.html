@@ -24,6 +24,10 @@
         </div>
       </div>
       <div class="account">
+        <div id="view-switch" class="view-switch hidden" role="tablist" aria-label="สลับมุมมอง">
+          <button id="view-user" class="view-tab" type="button" role="tab">มุมมองผู้ใช้</button>
+          <button id="view-admin" class="view-tab is-active" type="button" role="tab">มุมมองผู้ดูแล</button>
+        </div>
         <span id="account-label">ยังไม่ได้เข้าสู่ระบบ</span>
         <button id="logout-button" class="button ghost hidden" type="button">ออกจากระบบ</button>
       </div>
@@ -51,6 +55,7 @@
           </div>
         </section>
 
+        <div id="user-view">
         <div class="grid two-columns">
           <section class="card">
             <div class="section-heading">
@@ -93,42 +98,6 @@
           </section>
         </div>
 
-        <section id="rollcall-panel" class="card hidden">
-          <div class="section-heading">
-            <div>
-              <span class="eyebrow">สำหรับครูประจำห้อง</span>
-              <h2>เช็กชื่อรายห้อง</h2>
-            </div>
-            <span id="rollcall-progress" class="score">0/0</span>
-          </div>
-          <p class="note">ส่งได้หลายครั้ง ค่าล่าสุดจะทับของเดิม ศูนย์ควบคุมเห็นทันที</p>
-          <form id="rollcall-form">
-            <label for="rollcall-room">ห้อง</label>
-            <select id="rollcall-room" required></select>
-            <div class="grid rollcall-fields">
-              <div>
-                <label for="rollcall-present">อยู่ในห้อง</label>
-                <input id="rollcall-present" type="number" min="0" max="500" value="0" required />
-              </div>
-              <div>
-                <label for="rollcall-injured">บาดเจ็บ</label>
-                <input id="rollcall-injured" type="number" min="0" max="500" value="0" />
-              </div>
-              <div>
-                <label for="rollcall-missing">ยังหาไม่พบ</label>
-                <input id="rollcall-missing" type="number" min="0" max="500" value="0" />
-              </div>
-            </div>
-            <label class="checkbox-row">
-              <input id="rollcall-secured" type="checkbox" checked />
-              <span>ล็อกประตูและปิดไฟเรียบร้อยแล้ว</span>
-            </label>
-            <label for="rollcall-note">หมายเหตุ</label>
-            <input id="rollcall-note" maxlength="200" placeholder="เช่น มีนักเรียนห้องอื่นมาหลบด้วย 4 คน" />
-            <button class="button success wide" type="submit">ส่งผลเช็กชื่อ</button>
-          </form>
-        </section>
-
         <section class="card compact">
           <details>
             <summary>มีรหัสเชิญสำหรับบทบาทพิเศษ</summary>
@@ -137,15 +106,25 @@
               <input id="invite-token" type="password" autocomplete="one-time-code" placeholder="กรอกรหัสเชิญครั้งเดียว" />
               <button class="button secondary" type="submit">ยืนยันรหัส</button>
             </form>
-            <form id="teacher-form" class="inline-form">
-              <label class="sr-only" for="teacher-code">รหัสยืนยันบทบาทครู</label>
-              <input id="teacher-code" type="password" autocomplete="one-time-code" placeholder="รหัสยืนยันบทบาทครูประจำห้อง" />
-              <button class="button ghost" type="submit">ยืนยันเป็นครู</button>
-            </form>
           </details>
         </section>
 
-        <section id="commander-panel" class="card commander hidden">
+        </div>
+
+        <div id="admin-view" class="hidden">
+        <section id="reports-panel" class="card commander hidden">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">รอรับเรื่อง</span>
+              <h2>รายงานจากผู้ใช้</h2>
+            </div>
+            <span id="reports-count" class="pill commander-pill">0</span>
+          </div>
+          <ul id="reports-list" class="report-list"></ul>
+          <p class="note">กดรับเรื่องเพื่อหยุดการไล่ระดับไปยังผู้ประกาศคนถัดไป</p>
+        </section>
+
+        <section id="commander-panel" class="card commander">
           <div class="section-heading">
             <div>
               <span class="eyebrow">พื้นที่ควบคุมลับ</span>
@@ -182,7 +161,7 @@
           <p class="note">การยุติการฝึกซ้อมต้องได้รับการยืนยันจากผู้มีสิทธิ์ 2 คนที่แตกต่างกัน</p>
         </section>
 
-        <section id="dashboard-panel" class="card commander hidden">
+        <section id="dashboard-panel" class="card commander">
           <div class="section-heading">
             <div>
               <span class="eyebrow">ศูนย์ควบคุม</span>
@@ -195,13 +174,10 @@
             <div><strong id="metric-sent">–</strong><span>ส่ง Push สำเร็จ</span></div>
             <div><strong id="metric-ack">–</strong><span>รับทราบ</span></div>
             <div><strong id="metric-help">–</strong><span>ต้องการช่วยเหลือ</span></div>
-            <div><strong id="metric-rooms">–</strong><span>ห้องที่รายงานแล้ว</span></div>
-            <div><strong id="metric-missing">–</strong><span>ยังหาไม่พบ</span></div>
           </div>
-          <div id="rollcall-board" class="rollcall-board"></div>
         </section>
 
-        <section id="roster-panel" class="card commander hidden">
+        <section id="roster-panel" class="card commander">
           <div class="section-heading">
             <div>
               <span class="eyebrow">การหมุนเวียนผู้ประกาศ</span>
@@ -218,9 +194,14 @@
           </div>
           <p class="note">การถอดถอนผู้อื่นต้องได้รับการอนุมัติจากผู้ประกาศ 2 คนที่ต่างกัน ถอดถอนตัวเองทำได้ทันที</p>
         </section>
+        </div>
       </div>
     </main>
 
+    <div id="update-banner" class="update-banner hidden" role="status">
+      <span>มีระบบเวอร์ชันใหม่ จะอัปเดตให้อัตโนมัติเมื่อการฝึกซ้อมสิ้นสุด</span>
+      <button id="update-now" class="button ghost" type="button">อัปเดตเดี๋ยวนี้</button>
+    </div>
     <div id="toast" class="toast hidden" role="status"></div>
   </body>
 </html>

@@ -26,7 +26,9 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     (async () => {
       const data = event.data.json();
-      const expired = data.status !== "RESOLVED" && Date.now() > new Date(data.expiresAt).getTime();
+      const isReport = data.kind === "report";
+      const expired =
+        !isReport && data.status !== "RESOLVED" && Date.now() > new Date(data.expiresAt).getTime();
       if (expired) return;
       const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const client of clients) client.postMessage({ type: "PUSH_INCIDENT", payload: data });

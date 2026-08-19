@@ -35,9 +35,11 @@ async function commanderCapacity(env: Env): Promise<{ active: number; pending: n
 export async function commanderRoster(env: Env, user: AuthenticatedUser): Promise<Response> {
   requireRole(user, ["commander"]);
   const rows = await env.DB.prepare(
-    `SELECT call_sign AS callSign, created_at AS createdAt, last_login_at AS lastLoginAt
-     FROM users WHERE role = 'commander' AND active = 1 ORDER BY created_at`,
-  ).all<{ callSign: string; createdAt: string; lastLoginAt: string }>();
+    `SELECT call_sign AS callSign, created_at AS createdAt, last_login_at AS lastLoginAt,
+            COALESCE(commander_order, 999) AS notifyOrder
+     FROM users WHERE role = 'commander' AND active = 1
+     ORDER BY COALESCE(commander_order, 999), created_at`,
+  ).all<{ callSign: string; createdAt: string; lastLoginAt: string; notifyOrder: number }>();
   const capacity = await commanderCapacity(env);
   const pending = await env.DB.prepare(
     `SELECT COUNT(*) AS n FROM commander_revocations WHERE created_at > ?`,
@@ -135,7 +137,9 @@ export async function reinviteCommander(env: Env, user: AuthenticatedUser): Prom
   });
 }
 
-/* ─────────────────────────── ข้อ 6: บทบาทครู ─────────────────────────── */
+/* ─────────────────────────── บทบาทครู (ยังไม่เปิดใช้) ───────────────────────────
+   v0.3.0 ถอดระบบเช็กชื่อรายห้องออกเพื่อให้ระบบกระชับ ฟังก์ชันนี้จึงยังไม่ถูกผูกกับเส้นทาง API
+   เก็บไว้เพื่อเปิดใช้ทันทีเมื่อนำระบบเช็กชื่อกลับมา — ดูวิธีคืนค่าใน README-LEAN.md            */
 
 /**
  * ครูยืนยันบทบาทตนเองด้วยรหัสที่แจกในที่ประชุมบุคลากร

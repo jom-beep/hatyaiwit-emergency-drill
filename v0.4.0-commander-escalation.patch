@@ -1,0 +1,588 @@
+diff -ruN a/migrations/0003_report_escalation.sql b/migrations/0003_report_escalation.sql
+--- a/migrations/0003_report_escalation.sql	1970-01-01 07:00:00.000000000 +0700
++++ b/migrations/0003_report_escalation.sql	2026-08-19 09:45:12.583000181 +0700
+@@ -0,0 +1,23 @@
++-- 0003: การไล่ระดับแจ้งเหตุถึงผู้ประกาศทีละคน
++PRAGMA foreign_keys = ON;
++
++-- ลำดับการแจ้ง 1 ถึง 5 · ตั้งอัตโนมัติตอนรับรหัสเชิญ แก้ภายหลังได้ด้วย SQL
++ALTER TABLE users ADD COLUMN commander_order INTEGER;
++
++-- ผู้ประกาศที่กด "รับเรื่อง" แล้ว การไล่ระดับจะหยุดทันที
++ALTER TABLE reports ADD COLUMN claimed_by_identity_hash TEXT;
++ALTER TABLE reports ADD COLUMN claimed_at TEXT;
++
++-- บันทึกว่าแจ้งใครไปแล้วบ้างเมื่อไร ใช้ทบทวนหลังเหตุการณ์ว่าใครไม่ตอบ
++CREATE TABLE IF NOT EXISTS report_escalations (
++  report_id     TEXT NOT NULL,
++  step          INTEGER NOT NULL,
++  identity_hash TEXT NOT NULL,
++  devices       INTEGER NOT NULL DEFAULT 0,
++  notified_at   TEXT NOT NULL,
++  PRIMARY KEY (report_id, step),
++  FOREIGN KEY (report_id) REFERENCES reports(id),
++  FOREIGN KEY (identity_hash) REFERENCES users(identity_hash)
++);
++
++CREATE INDEX IF NOT EXISTS idx_reports_open ON reports(status, created_at);
+diff -ruN a/public/app.js b/public/app.js
+--- a/public/app.js	2026-08-19 09:44:55.958000173 +0700
++++ b/public/app.js	2026-08-19 09:45:12.621000181 +0700
+@@ -10,6 +10,7 @@
+   view: "admin",
+   version: null,
+   updatePending: false,
++  reportsTimer: null,
+ };
+ 
+ const $ = (selector) => document.querySelector(selector);
+@@ -392,6 +393,71 @@
+   }
+ }
+ 
++/* ── รายงานจากผู้ใช้ที่รอรับเรื่อง ────────────────────────────
++   ระบบจะแจ้งผู้ประกาศลำดับที่ 1 ก่อน ถ้าไม่มีใครกดรับเรื่อง
++   จะไล่ไปลำดับถัดไปเรื่อย ๆ จนถึงคนที่ 5
++   การกดรับเรื่องหยุดการไล่ระดับทันที                              */
++
++const TYPE_LABEL = {
++  VIOLENCE: "เหตุความรุนแรง",
++  WEAPON: "พบสิ่งที่อาจเป็นอาวุธ",
++  SUSPICIOUS: "บุคคลหรือเหตุการณ์น่าสงสัย",
++  MEDICAL: "เหตุฉุกเฉินทางการแพทย์",
++  OTHER: "เหตุอื่น ๆ",
++};
++
++async function refreshReports() {
++  if (state.me?.role !== "commander") return;
++  try {
++    const result = await api("/api/reports/open");
++    const list = result.reports || [];
++    $("#reports-count").textContent = String(list.length);
++    $("#reports-panel").classList.toggle("hidden", list.length === 0);
++    $("#reports-list").replaceChildren(
++      ...list.map((report) => {
++        const item = document.createElement("li");
++        const info = document.createElement("div");
++        info.className = "info";
++        const title = document.createElement("strong");
++        title.textContent = TYPE_LABEL[report.type] || report.type;
++        const meta = document.createElement("span");
++        meta.className = "meta";
++        const step = report.step ? ` · แจ้งถึงผู้ประกาศลำดับที่ ${report.step} แล้ว` : " · กำลังแจ้ง";
++        meta.textContent =
++          `${report.zone} · ${new Date(report.createdAt).toLocaleTimeString("th-TH")}${step}`;
++        info.append(title);
++        if (report.note) {
++          const note = document.createElement("div");
++          note.textContent = report.note;
++          info.append(note);
++        }
++        info.append(meta);
++        const button = document.createElement("button");
++        button.className = "button success";
++        button.textContent = "รับเรื่อง";
++        button.addEventListener("click", () => claimReport(report.id, button));
++        item.append(info, button);
++        return item;
++      }),
++    );
++  } catch (error) {
++    if (error.status !== 403) toast(error.message);
++  }
++}
++
++async function claimReport(reportId, button) {
++  button.disabled = true;
++  try {
++    await api(`/api/reports/${reportId}/claim`, { method: "POST", body: "{}" });
++    toast("รับเรื่องแล้ว หยุดการแจ้งผู้ประกาศคนถัดไป");
++    await refreshReports();
++  } catch (error) {
++    toast(error.message);
++    button.disabled = false;
++    await refreshReports();
++  }
++}
++
+ /* ── การอัปเดตเวอร์ชัน ────────────────────────────────────────
+    เครื่องที่เปิดค้างไว้ทั้งวันจะยังรันโค้ดเวอร์ชันเก่าจนกว่าจะโหลดหน้าใหม่
+    ซึ่งเป็นความเสี่ยงจริงในโรงเรียน เพราะครูมักเปิดแอปทิ้งไว้บนโต๊ะ
+@@ -448,6 +514,11 @@
+   if (admin) {
+     refreshDashboard();
+     refreshRoster();
++    refreshReports();
++    if (!state.reportsTimer) state.reportsTimer = window.setInterval(refreshReports, 15000);
++  } else if (state.reportsTimer) {
++    window.clearInterval(state.reportsTimer);
++    state.reportsTimer = null;
+   }
+ }
+ 
+@@ -507,6 +578,9 @@
+ $("#help-button").addEventListener("click", () => acknowledge("NEED_HELP"));
+ $("#logout-button").addEventListener("click", logout);
+ $("#update-now").addEventListener("click", applyUpdate);
++navigator.serviceWorker?.addEventListener("message", (event) => {
++  if (event.data?.payload?.kind === "report") refreshReports();
++});
+ document.addEventListener("visibilitychange", () => {
+   if (!document.hidden) checkVersion();
+ });
+diff -ruN a/public/index.html b/public/index.html
+--- a/public/index.html	2026-08-19 09:44:55.956000173 +0700
++++ b/public/index.html	2026-08-19 09:45:12.611000181 +0700
+@@ -112,6 +112,18 @@
+         </div>
+ 
+         <div id="admin-view" class="hidden">
++        <section id="reports-panel" class="card commander hidden">
++          <div class="section-heading">
++            <div>
++              <span class="eyebrow">รอรับเรื่อง</span>
++              <h2>รายงานจากผู้ใช้</h2>
++            </div>
++            <span id="reports-count" class="pill commander-pill">0</span>
++          </div>
++          <ul id="reports-list" class="report-list"></ul>
++          <p class="note">กดรับเรื่องเพื่อหยุดการไล่ระดับไปยังผู้ประกาศคนถัดไป</p>
++        </section>
++
+         <section id="commander-panel" class="card commander">
+           <div class="section-heading">
+             <div>
+diff -ruN a/public/styles.css b/public/styles.css
+--- a/public/styles.css	2026-08-19 09:44:55.958000173 +0700
++++ b/public/styles.css	2026-08-19 09:45:12.624000181 +0700
+@@ -124,3 +124,9 @@
+   justify-content: space-between; gap: 12px; flex-wrap: wrap;
+   background: #1f2937; color: #fff; padding: 12px 18px; font-size: 14px; }
+ .update-banner .button { min-height: 36px; padding: 6px 14px; }
++
++.report-list { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; }
++.report-list li { border: 1px solid #f3bcc3; background: #fdeaec; border-radius: 12px;
++  padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
++.report-list .info { font-size: 14px; }
++.report-list .meta { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
+diff -ruN a/public/sw.js b/public/sw.js
+--- a/public/sw.js	2026-08-19 09:44:55.959000173 +0700
++++ b/public/sw.js	2026-08-19 09:45:12.627000181 +0700
+@@ -26,7 +26,9 @@
+   event.waitUntil(
+     (async () => {
+       const data = event.data.json();
+-      const expired = data.status !== "RESOLVED" && Date.now() > new Date(data.expiresAt).getTime();
++      const isReport = data.kind === "report";
++      const expired =
++        !isReport && data.status !== "RESOLVED" && Date.now() > new Date(data.expiresAt).getTime();
+       if (expired) return;
+       const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+       for (const client of clients) client.postMessage({ type: "PUSH_INCIDENT", payload: data });
+diff -ruN a/src/escalation.ts b/src/escalation.ts
+--- a/src/escalation.ts	1970-01-01 07:00:00.000000000 +0700
++++ b/src/escalation.ts	2026-08-19 09:44:55.987000173 +0700
+@@ -0,0 +1,167 @@
++import webpush from "web-push";
++import type { AuthenticatedUser, EscalationJob, Env, PushSubscriptionRow } from "./types";
++import { HttpError, json } from "./security";
++import { audit } from "./audit";
++import { requireRole } from "./auth";
++
++/**
++ * การไล่ระดับแจ้งเหตุถึงผู้ประกาศทีละคน
++ *
++ * เมื่อมีผู้ใช้ส่งรายงานเข้ามา ระบบจะแจ้งผู้ประกาศลำดับที่ 1 ก่อน
++ * ถ้าไม่มีใครกด "รับเรื่อง" ภายในเวลาที่กำหนด จะไล่ไปลำดับถัดไปจนถึงคนที่ 5
++ *
++ * เหตุผลที่ต้องมี: ของเดิมรายงานจากผู้ใช้ถูกบันทึกลงฐานข้อมูลเฉย ๆ
++ * ไม่มีใครรู้จนกว่าจะมีคนเปิดกระดานดู ซึ่งในเหตุจริงอาจสายเกินไป
++ *
++ * ใช้ FANOUT_QUEUE ที่มีอยู่แล้วพร้อม delaySeconds จึงไม่ต้องสร้างคิวใหม่
++ * และไม่ต้องเพิ่ม Durable Object class
++ */
++
++const REPORT_LABEL: Record<string, string> = {
++  VIOLENCE: "เหตุความรุนแรง",
++  WEAPON: "พบสิ่งที่อาจเป็นอาวุธ",
++  SUSPICIOUS: "บุคคลหรือเหตุการณ์น่าสงสัย",
++  MEDICAL: "เหตุฉุกเฉินทางการแพทย์",
++  OTHER: "เหตุอื่น ๆ",
++};
++
++const stepSeconds = (env: Env): number =>
++  Math.max(5, Number(env.ESCALATION_STEP_SECONDS ?? "10"));
++
++/** เริ่มไล่ระดับทันทีที่มีรายงานเข้ามา */
++export async function startEscalation(env: Env, reportId: string): Promise<void> {
++  await env.FANOUT_QUEUE.send({ kind: "escalate", reportId, step: 1 });
++}
++
++interface ReportRow {
++  id: string;
++  type: string;
++  zone: string;
++  note: string;
++  status: string;
++  created_at: string;
++  claimed_at: string | null;
++}
++
++export async function handleEscalation(message: Message<EscalationJob>, env: Env): Promise<void> {
++  const { reportId, step } = message.body;
++
++  const report = await env.DB.prepare(
++    `SELECT id, type, zone, note, status, created_at, claimed_at
++     FROM reports WHERE id = ?`,
++  )
++    .bind(reportId)
++    .first<ReportRow>();
++
++  // รายงานถูกรับเรื่องแล้ว หรือถูกปิดไปแล้ว — หยุดไล่ระดับ
++  if (!report || report.claimed_at || report.status !== "NEW") {
++    message.ack();
++    return;
++  }
++
++  // ผู้ประกาศลำดับที่ step — เรียงตาม commander_order แล้วค่อยตามเวลาที่รับสิทธิ์
++  const commander = await env.DB.prepare(
++    `SELECT identity_hash AS identityHash, call_sign AS callSign
++     FROM users
++     WHERE role = 'commander' AND active = 1
++     ORDER BY COALESCE(commander_order, 999), created_at
++     LIMIT 1 OFFSET ?`,
++  )
++    .bind(step - 1)
++    .first<{ identityHash: string; callSign: string | null }>();
++
++  // ไล่ครบทุกคนแล้ว
++  if (!commander) {
++    await env.DB.prepare(
++      `INSERT INTO audit_log (id, actor_identity_hash, action, object_type, object_id, created_at, metadata_json)
++       VALUES (?, 'system:maintenance', 'ESCALATION_EXHAUSTED', 'report', ?, ?, ?)`,
++    )
++      .bind(crypto.randomUUID(), reportId, new Date().toISOString(), JSON.stringify({ steps: step - 1 }))
++      .run();
++    message.ack();
++    return;
++  }
++
++  const devices = await env.DB.prepare(
++    `SELECT id, endpoint, p256dh, auth, zone, active
++     FROM push_subscriptions WHERE identity_hash = ? AND active = 1`,
++  )
++    .bind(commander.identityHash)
++    .all<PushSubscriptionRow>();
++
++  const label = REPORT_LABEL[report.type] ?? report.type;
++  const payload = {
++    kind: "report",
++    reportId: report.id,
++    title: `แจ้งเหตุจากผู้ใช้ · ${label}`,
++    body: `${report.zone}${report.note ? " — " + report.note : ""}\nกดเพื่อรับเรื่อง · เหตุด่วนโทร 191`,
++    tag: `report-${report.id}`,
++    url: `${env.PUBLIC_ORIGIN}/?report=${encodeURIComponent(report.id)}`,
++  };
++
++  webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
++  let delivered = 0;
++  for (const device of devices.results) {
++    try {
++      await webpush.sendNotification(
++        { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } },
++        JSON.stringify(payload),
++        { TTL: 300, urgency: "high", topic: `rep${report.id.slice(-24)}` },
++      );
++      delivered += 1;
++    } catch (error) {
++      const status = error instanceof webpush.WebPushError ? error.statusCode : 0;
++      if (status === 404 || status === 410) {
++        await env.DB.prepare("UPDATE push_subscriptions SET active = 0 WHERE id = ?").bind(device.id).run();
++      }
++    }
++  }
++
++  await env.DB.prepare(
++    `INSERT OR REPLACE INTO report_escalations (report_id, step, identity_hash, devices, notified_at)
++     VALUES (?, ?, ?, ?, ?)`,
++  )
++    .bind(reportId, step, commander.identityHash, delivered, new Date().toISOString())
++    .run();
++
++  // นัดไล่ระดับคนถัดไป ถ้ายังไม่มีใครรับเรื่องภายในเวลาที่กำหนด
++  await env.FANOUT_QUEUE.send(
++    { kind: "escalate", reportId, step: step + 1 },
++    { delaySeconds: stepSeconds(env) },
++  );
++  message.ack();
++}
++
++/* ─────────────────────── ฝั่งผู้ประกาศ ─────────────────────── */
++
++/** รายงานที่ยังไม่มีใครรับเรื่อง พร้อมบอกว่าไล่ระดับไปถึงคนที่เท่าไรแล้ว */
++export async function openReports(env: Env, user: AuthenticatedUser): Promise<Response> {
++  requireRole(user, ["commander"]);
++  const rows = await env.DB.prepare(
++    `SELECT r.id, r.type, r.zone, r.note, r.created_at AS createdAt,
++            (SELECT MAX(step) FROM report_escalations e WHERE e.report_id = r.id) AS step
++     FROM reports r
++     WHERE r.status = 'NEW' AND r.claimed_at IS NULL
++     ORDER BY r.created_at DESC LIMIT 20`,
++  ).all();
++  return json({ reports: rows.results });
++}
++
++/** กดรับเรื่อง — หยุดการไล่ระดับทันที */
++export async function claimReport(
++  reportId: string,
++  env: Env,
++  user: AuthenticatedUser,
++): Promise<Response> {
++  requireRole(user, ["commander"]);
++  const now = new Date().toISOString();
++  const result = await env.DB.prepare(
++    `UPDATE reports SET claimed_by_identity_hash = ?, claimed_at = ?, status = 'REVIEWED'
++     WHERE id = ? AND claimed_at IS NULL`,
++  )
++    .bind(user.identityHash, now, reportId)
++    .run();
++  if ((result.meta.changes ?? 0) !== 1) throw new HttpError(409, "มีผู้ประกาศคนอื่นรับเรื่องนี้ไปแล้ว");
++  await audit(env, user, "CLAIM_REPORT", "report", reportId, {});
++  return json({ ok: true, reportId, claimedAt: now });
++}
+diff -ruN a/src/index.ts b/src/index.ts
+--- a/src/index.ts	2026-08-19 09:44:36.807000164 +0700
++++ b/src/index.ts	2026-08-19 09:44:55.984000173 +0700
+@@ -20,6 +20,7 @@
+ import { audit } from "./audit";
+ import { runMaintenance } from "./maintenance";
+ import { callSignFor, commanderRoster, reinviteCommander, revokeCommander } from "./roles";
++import { claimReport, openReports, startEscalation } from "./escalation";
+ export { IncidentCoordinator } from "./incident-object";
+ 
+ const ALERT_TYPES = new Set(["LOCKDOWN", "EVACUATE", "SHELTER", "MEDICAL", "INFORMATION"]);
+@@ -95,7 +96,14 @@
+   if ((results[0]!.meta.changes ?? 0) !== 1) throw new HttpError(409, "รหัสถูกใช้แล้วหรือหมดอายุ");
+   // ข้อ 4: ตั้งป้ายเรียกให้ผู้ประกาศ เพื่อให้อ้างถึงกันได้โดยไม่ต้องเปิดเผยอีเมล
+   const callSign = await callSignFor(user.identityHash);
+-  await env.DB.prepare("UPDATE users SET call_sign = ? WHERE identity_hash = ? AND role = 'commander'")
++  await env.DB.prepare(
++    `UPDATE users SET call_sign = ?,
++       commander_order = COALESCE(
++         commander_order,
++         (SELECT COALESCE(MAX(commander_order), 0) + 1 FROM users WHERE role = 'commander' AND active = 1)
++       )
++     WHERE identity_hash = ? AND role = 'commander'`,
++  )
+     .bind(callSign, user.identityHash)
+     .run();
+   await audit(env, user, "REDEEM_COMMANDER_INVITE", "user", callSign);
+@@ -166,6 +174,8 @@
+     .bind(id, user.identityHash, input.type, zone, String(input.note ?? "").trim().slice(0, 300), now)
+     .run();
+   await audit(env, user, "CREATE_REPORT", "report", id, { type: input.type, zone });
++  // ปลุกผู้ประกาศทันที แล้วไล่ไปคนถัดไปถ้าไม่มีใครรับเรื่อง
++  await startEscalation(env, id);
+   return json({ ok: true, reportId: id, status: "NEW" }, { status: 201 });
+ }
+ 
+@@ -422,6 +432,12 @@
+     await body<Record<string, never>>(request);
+     return reinviteCommander(env, user);
+   }
++  if (request.method === "GET" && url.pathname === "/api/reports/open") return openReports(env, user);
++  const claim = url.pathname.match(/^\/api\/reports\/([\w-]+)\/claim$/);
++  if (request.method === "POST" && claim) {
++    await body<Record<string, never>>(request);
++    return claimReport(claim[1]!, env, user);
++  }
+   if (request.method === "GET" && url.pathname === "/api/commander/roster") {
+     return commanderRoster(env, user);
+   }
+diff -ruN a/src/push.ts b/src/push.ts
+--- a/src/push.ts	2026-08-19 09:44:36.809000164 +0700
++++ b/src/push.ts	2026-08-19 09:44:55.985000173 +0700
+@@ -1,5 +1,6 @@
+ import webpush from "web-push";
+-import type { Env, FanoutJob, Incident, PushJob, PushPayload, PushSubscriptionRow } from "./types";
++import type { EscalationJob, Env, FanoutJob, Incident, PushJob, PushPayload, PushSubscriptionRow } from "./types";
++import { handleEscalation } from "./escalation";
+ 
+ const FANOUT_PAGE_SIZE = 200;
+ 
+@@ -161,10 +162,10 @@
+ export async function handleQueue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+   await Promise.all(
+     batch.messages.map((unknownMessage) => {
+-      const message = unknownMessage as Message<FanoutJob | PushJob>;
+-      return message.body.kind === "fanout"
+-        ? handleFanout(message as Message<FanoutJob>, env)
+-        : handlePush(message as Message<PushJob>, env);
++      const message = unknownMessage as Message<FanoutJob | PushJob | EscalationJob>;
++      if (message.body.kind === "fanout") return handleFanout(message as Message<FanoutJob>, env);
++      if (message.body.kind === "escalate") return handleEscalation(message as Message<EscalationJob>, env);
++      return handlePush(message as Message<PushJob>, env);
+     }),
+   );
+ }
+diff -ruN a/src/roles.ts b/src/roles.ts
+--- a/src/roles.ts	2026-08-19 09:44:36.811000164 +0700
++++ b/src/roles.ts	2026-08-19 09:44:55.987000173 +0700
+@@ -35,9 +35,11 @@
+ export async function commanderRoster(env: Env, user: AuthenticatedUser): Promise<Response> {
+   requireRole(user, ["commander"]);
+   const rows = await env.DB.prepare(
+-    `SELECT call_sign AS callSign, created_at AS createdAt, last_login_at AS lastLoginAt
+-     FROM users WHERE role = 'commander' AND active = 1 ORDER BY created_at`,
+-  ).all<{ callSign: string; createdAt: string; lastLoginAt: string }>();
++    `SELECT call_sign AS callSign, created_at AS createdAt, last_login_at AS lastLoginAt,
++            COALESCE(commander_order, 999) AS notifyOrder
++     FROM users WHERE role = 'commander' AND active = 1
++     ORDER BY COALESCE(commander_order, 999), created_at`,
++  ).all<{ callSign: string; createdAt: string; lastLoginAt: string; notifyOrder: number }>();
+   const capacity = await commanderCapacity(env);
+   const pending = await env.DB.prepare(
+     `SELECT COUNT(*) AS n FROM commander_revocations WHERE created_at > ?`,
+diff -ruN a/src/types.ts b/src/types.ts
+--- a/src/types.ts	2026-08-19 09:44:36.805000164 +0700
++++ b/src/types.ts	2026-08-19 09:44:55.983000173 +0700
+@@ -18,7 +18,7 @@
+   DB: D1Database;
+   ASSETS: Fetcher;
+   INCIDENT_COORDINATOR: DurableObjectNamespace;
+-  FANOUT_QUEUE: Queue<FanoutJob>;
++  FANOUT_QUEUE: Queue<FanoutJob | EscalationJob>;
+   PUSH_QUEUE: Queue<PushJob>;
+   ALLOWED_GOOGLE_DOMAIN: string;
+   DEPLOYMENT_MODE: "DRILL";
+@@ -37,6 +37,8 @@
+   TEACHER_CODE?: string;
+   /** เลขเวอร์ชันที่ deploy อยู่ ใช้ให้เครื่องที่เปิดค้างไว้รู้ว่ามีของใหม่ */
+   APP_VERSION?: string;
++  /** เว้นระยะกี่วินาทีก่อนไล่ไปผู้ประกาศคนถัดไป ค่าเริ่มต้น 10 */
++  ESCALATION_STEP_SECONDS?: string;
+   /** จำนวนวันที่เก็บ log รายเหตุการณ์ ค่าเริ่มต้น 90 audit_log ไม่ถูกลบไม่ว่ากรณีใด (ข้อ 5) */
+   LOG_RETENTION_DAYS?: string;
+   /** จำนวนวันที่ไม่มีสัญญาณแล้วถือว่าอุปกรณ์ไม่พร้อม ค่าเริ่มต้น 180 (ข้อ 5) */
+@@ -95,6 +97,13 @@
+   url: string;
+ }
+ 
++/** งานไล่ระดับแจ้งเหตุ — ส่งเข้า FANOUT_QUEUE เพื่อไม่ต้องสร้างคิวใหม่ */
++export interface EscalationJob {
++  kind: "escalate";
++  reportId: string;
++  step: number;
++}
++
+ export interface PushJob {
+   kind: "push";
+   subscriptionId: string;
+diff -ruN a/tests/escalation.test.ts b/tests/escalation.test.ts
+--- a/tests/escalation.test.ts	1970-01-01 07:00:00.000000000 +0700
++++ b/tests/escalation.test.ts	2026-08-19 09:44:55.982000173 +0700
+@@ -0,0 +1,104 @@
++import { DatabaseSync } from "node:sqlite";
++import { readFileSync } from "node:fs";
++import { beforeEach, describe, expect, it } from "vitest";
++
++/** ทดสอบตรรกะการไล่ระดับด้วย SQL ชุดเดียวกับที่ใช้จริงใน src/escalation.ts */
++const SCHEMA = [
++  "migrations/0001_schema.sql",
++  "migrations/0002_rotation_rollcall_retention.sql",
++  "migrations/0003_report_escalation.sql",
++]
++  .map((f) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8"))
++  .join("\n");
++
++const NOW = new Date().toISOString();
++let db: DatabaseSync;
++
++/** เลือกผู้ประกาศลำดับที่ step — ตรงกับคำสั่งใน handleEscalation */
++const commanderAtStep = (step: number) =>
++  db
++    .prepare(
++      `SELECT identity_hash AS identityHash FROM users
++       WHERE role = 'commander' AND active = 1
++       ORDER BY COALESCE(commander_order, 999), created_at
++       LIMIT 1 OFFSET ?`,
++    )
++    .get(step - 1) as { identityHash: string } | undefined;
++
++const claim = (reportId: string, who: string) =>
++  db
++    .prepare(
++      `UPDATE reports SET claimed_by_identity_hash = ?, claimed_at = ?, status = 'REVIEWED'
++       WHERE id = ? AND claimed_at IS NULL`,
++    )
++    .run(who, NOW, reportId).changes;
++
++beforeEach(() => {
++  db = new DatabaseSync(":memory:");
++  db.exec("PRAGMA foreign_keys = ON;");
++  db.exec(SCHEMA);
++  for (let i = 1; i <= 5; i += 1) {
++    db.prepare(
++      `INSERT INTO users (identity_hash, email_hash, role, active, created_at, last_login_at, call_sign, commander_order)
++       VALUES (?, ?, 'commander', 1, ?, ?, ?, ?)`,
++    ).run(`C${i}`, `e${i}`, NOW, NOW, `CMD-000${i}`, i);
++  }
++  db.prepare(
++    "INSERT INTO reports (id, reporter_identity_hash, type, zone, note, created_at) VALUES ('R1', 'C1', 'WEAPON', 'BUILDING_2', 'พบวัตถุคล้ายอาวุธ', ?)",
++  ).run(NOW);
++});
++
++describe("การไล่ระดับแจ้งเหตุ", () => {
++  it("ไล่ตามลำดับ 1 ถึง 5 ตาม commander_order", () => {
++    const order = [1, 2, 3, 4, 5].map((step) => commanderAtStep(step)?.identityHash);
++    expect(order).toEqual(["C1", "C2", "C3", "C4", "C5"]);
++  });
++
++  it("เคารพลำดับที่ผู้ดูแลตั้งเอง ไม่ใช่ลำดับที่สมัคร", () => {
++    db.prepare("UPDATE users SET commander_order = 1 WHERE identity_hash = 'C5'").run();
++    db.prepare("UPDATE users SET commander_order = 5 WHERE identity_hash = 'C1'").run();
++    expect(commanderAtStep(1)?.identityHash).toBe("C5");
++    expect(commanderAtStep(5)?.identityHash).toBe("C1");
++  });
++
++  it("ข้ามผู้ประกาศที่ถูกปิดใช้งาน", () => {
++    db.prepare("UPDATE users SET active = 0 WHERE identity_hash = 'C2'").run();
++    expect(commanderAtStep(2)?.identityHash).toBe("C3");
++  });
++
++  it("ไล่เกินคนสุดท้ายแล้วหยุด ไม่วนซ้ำ", () => {
++    expect(commanderAtStep(6)).toBeUndefined();
++  });
++
++  it("รับเรื่องได้แค่ครั้งเดียว คนที่สองจะไม่ได้", () => {
++    expect(claim("R1", "C1")).toBe(1);
++    expect(claim("R1", "C2")).toBe(0);
++  });
++
++  it("รายงานที่รับเรื่องแล้วหลุดออกจากรายการที่ต้องไล่ระดับ", () => {
++    const open = () =>
++      db
++        .prepare("SELECT COUNT(*) AS n FROM reports WHERE status = 'NEW' AND claimed_at IS NULL")
++        .get() as { n: number };
++    expect(open().n).toBe(1);
++    claim("R1", "C3");
++    expect(open().n).toBe(0);
++  });
++
++  it("บันทึกทุกขั้นที่แจ้งไป ใช้ทบทวนหลังเหตุการณ์ว่าใครไม่ตอบ", () => {
++    for (let step = 1; step <= 3; step += 1) {
++      const c = commanderAtStep(step)!;
++      db.prepare(
++        "INSERT OR REPLACE INTO report_escalations (report_id, step, identity_hash, devices, notified_at) VALUES ('R1', ?, ?, 1, ?)",
++      ).run(step, c.identityHash, NOW);
++    }
++    const rows = db
++      .prepare("SELECT step, identity_hash AS who FROM report_escalations ORDER BY step")
++      .all() as { step: number; who: string }[];
++    expect(rows.map((r) => r.who)).toEqual(["C1", "C2", "C3"]);
++    const latest = db
++      .prepare("SELECT MAX(step) AS step FROM report_escalations WHERE report_id = 'R1'")
++      .get() as { step: number };
++    expect(latest.step).toBe(3);
++  });
++});

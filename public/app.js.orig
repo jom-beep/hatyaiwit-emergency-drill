@@ -10,7 +10,6 @@ const state = {
   view: "admin",
   version: null,
   updatePending: false,
-  reportsTimer: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -393,71 +392,6 @@ async function reinviteCommander() {
   }
 }
 
-/* ── รายงานจากผู้ใช้ที่รอรับเรื่อง ────────────────────────────
-   ระบบจะแจ้งผู้ประกาศลำดับที่ 1 ก่อน ถ้าไม่มีใครกดรับเรื่อง
-   จะไล่ไปลำดับถัดไปเรื่อย ๆ จนถึงคนที่ 5
-   การกดรับเรื่องหยุดการไล่ระดับทันที                              */
-
-const TYPE_LABEL = {
-  VIOLENCE: "เหตุความรุนแรง",
-  WEAPON: "พบสิ่งที่อาจเป็นอาวุธ",
-  SUSPICIOUS: "บุคคลหรือเหตุการณ์น่าสงสัย",
-  MEDICAL: "เหตุฉุกเฉินทางการแพทย์",
-  OTHER: "เหตุอื่น ๆ",
-};
-
-async function refreshReports() {
-  if (state.me?.role !== "commander") return;
-  try {
-    const result = await api("/api/reports/open");
-    const list = result.reports || [];
-    $("#reports-count").textContent = String(list.length);
-    $("#reports-panel").classList.toggle("hidden", list.length === 0);
-    $("#reports-list").replaceChildren(
-      ...list.map((report) => {
-        const item = document.createElement("li");
-        const info = document.createElement("div");
-        info.className = "info";
-        const title = document.createElement("strong");
-        title.textContent = TYPE_LABEL[report.type] || report.type;
-        const meta = document.createElement("span");
-        meta.className = "meta";
-        const step = report.step ? ` · แจ้งถึงผู้ประกาศลำดับที่ ${report.step} แล้ว` : " · กำลังแจ้ง";
-        meta.textContent =
-          `${report.zone} · ${new Date(report.createdAt).toLocaleTimeString("th-TH")}${step}`;
-        info.append(title);
-        if (report.note) {
-          const note = document.createElement("div");
-          note.textContent = report.note;
-          info.append(note);
-        }
-        info.append(meta);
-        const button = document.createElement("button");
-        button.className = "button success";
-        button.textContent = "รับเรื่อง";
-        button.addEventListener("click", () => claimReport(report.id, button));
-        item.append(info, button);
-        return item;
-      }),
-    );
-  } catch (error) {
-    if (error.status !== 403) toast(error.message);
-  }
-}
-
-async function claimReport(reportId, button) {
-  button.disabled = true;
-  try {
-    await api(`/api/reports/${reportId}/claim`, { method: "POST", body: "{}" });
-    toast("รับเรื่องแล้ว หยุดการแจ้งผู้ประกาศคนถัดไป");
-    await refreshReports();
-  } catch (error) {
-    toast(error.message);
-    button.disabled = false;
-    await refreshReports();
-  }
-}
-
 /* ── การอัปเดตเวอร์ชัน ────────────────────────────────────────
    เครื่องที่เปิดค้างไว้ทั้งวันจะยังรันโค้ดเวอร์ชันเก่าจนกว่าจะโหลดหน้าใหม่
    ซึ่งเป็นความเสี่ยงจริงในโรงเรียน เพราะครูมักเปิดแอปทิ้งไว้บนโต๊ะ
@@ -514,11 +448,6 @@ function setView(view) {
   if (admin) {
     refreshDashboard();
     refreshRoster();
-    refreshReports();
-    if (!state.reportsTimer) state.reportsTimer = window.setInterval(refreshReports, 15000);
-  } else if (state.reportsTimer) {
-    window.clearInterval(state.reportsTimer);
-    state.reportsTimer = null;
   }
 }
 
@@ -574,9 +503,6 @@ $("#ack-button").addEventListener("click", () => acknowledge("ACK"));
 $("#help-button").addEventListener("click", () => acknowledge("NEED_HELP"));
 $("#logout-button").addEventListener("click", logout);
 $("#update-now").addEventListener("click", applyUpdate);
-navigator.serviceWorker?.addEventListener("message", (event) => {
-  if (event.data?.payload?.kind === "report") refreshReports();
-});
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) checkVersion();
 });

@@ -18,7 +18,7 @@ export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   INCIDENT_COORDINATOR: DurableObjectNamespace;
-  FANOUT_QUEUE: Queue<FanoutJob>;
+  FANOUT_QUEUE: Queue<FanoutJob | EscalationJob>;
   PUSH_QUEUE: Queue<PushJob>;
   ALLOWED_GOOGLE_DOMAIN: string;
   DEPLOYMENT_MODE: "DRILL";
@@ -33,8 +33,12 @@ export interface Env {
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
   VAPID_SUBJECT: string;
-  /** รหัสยืนยันบทบาทครู แจกในที่ประชุมบุคลากร (ข้อ 6) */
+  /** รหัสยืนยันบทบาทครู แจกในที่ประชุมบุคลากร */
   TEACHER_CODE?: string;
+  /** เลขเวอร์ชันที่ deploy อยู่ ใช้ให้เครื่องที่เปิดค้างไว้รู้ว่ามีของใหม่ */
+  APP_VERSION?: string;
+  /** เว้นระยะกี่วินาทีก่อนไล่ไปผู้ประกาศคนถัดไป ค่าเริ่มต้น 10 */
+  ESCALATION_STEP_SECONDS?: string;
   /** จำนวนวันที่เก็บ log รายเหตุการณ์ ค่าเริ่มต้น 90 audit_log ไม่ถูกลบไม่ว่ากรณีใด (ข้อ 5) */
   LOG_RETENTION_DAYS?: string;
   /** จำนวนวันที่ไม่มีสัญญาณแล้วถือว่าอุปกรณ์ไม่พร้อม ค่าเริ่มต้น 180 (ข้อ 5) */
@@ -91,6 +95,13 @@ export interface PushPayload {
   expiresAt: string;
   tag: string;
   url: string;
+}
+
+/** งานไล่ระดับแจ้งเหตุ — ส่งเข้า FANOUT_QUEUE เพื่อไม่ต้องสร้างคิวใหม่ */
+export interface EscalationJob {
+  kind: "escalate";
+  reportId: string;
+  step: number;
 }
 
 export interface PushJob {

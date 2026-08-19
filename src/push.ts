@@ -1,5 +1,6 @@
 import webpush from "web-push";
-import type { Env, FanoutJob, Incident, PushJob, PushPayload, PushSubscriptionRow } from "./types";
+import type { EscalationJob, Env, FanoutJob, Incident, PushJob, PushPayload, PushSubscriptionRow } from "./types";
+import { handleEscalation } from "./escalation";
 
 const FANOUT_PAGE_SIZE = 200;
 
@@ -161,10 +162,10 @@ async function handlePush(message: Message<PushJob>, env: Env): Promise<void> {
 export async function handleQueue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
   await Promise.all(
     batch.messages.map((unknownMessage) => {
-      const message = unknownMessage as Message<FanoutJob | PushJob>;
-      return message.body.kind === "fanout"
-        ? handleFanout(message as Message<FanoutJob>, env)
-        : handlePush(message as Message<PushJob>, env);
+      const message = unknownMessage as Message<FanoutJob | PushJob | EscalationJob>;
+      if (message.body.kind === "fanout") return handleFanout(message as Message<FanoutJob>, env);
+      if (message.body.kind === "escalate") return handleEscalation(message as Message<EscalationJob>, env);
+      return handlePush(message as Message<PushJob>, env);
     }),
   );
 }
