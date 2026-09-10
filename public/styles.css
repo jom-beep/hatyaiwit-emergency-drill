@@ -110,7 +110,8 @@ textarea { resize: vertical; }
 .toast { position: fixed; right: 22px; bottom: 22px; z-index: 30; max-width: 420px; padding: 14px 18px; border-radius: 12px; color: #fff; background: #18202c; box-shadow: var(--shadow); }
 
 @media (max-width: 760px) {
-  .topbar { align-items: flex-start; padding: 14px 16px; }
+  .topbar { align-items: flex-start; padding: 14px 16px; flex-wrap: wrap; }
+  .brand { width: 100%; }
   .account { width: 100%; flex-direction: column; align-items: stretch; }
   .button { min-height: 52px; }
   .shell { width: min(100% - 20px, 680px); margin-top: 12px; }
@@ -141,7 +142,7 @@ textarea { resize: vertical; }
   .view-tab { flex: 1; min-height: 44px; padding: 10px 8px; font-size: 14px; }
 }
 
-.update-banner { position: sticky; bottom: 0; z-index: 30; display: flex; align-items: center;
+.update-banner { z-index: 30; display: flex; align-items: center;
   justify-content: space-between; gap: 12px; flex-wrap: wrap;
   background: #1f2937; color: #fff; padding: 12px 18px; font-size: 14px; }
 .update-banner .button { min-height: 36px; padding: 6px 14px; }
@@ -196,15 +197,23 @@ textarea { resize: vertical; }
 .roster-card details summary .eyebrow { display: block; }
 .roster-card details[open] summary { margin-bottom: 12px; }
 .guide-lead { color: var(--muted); margin: 8px 0 0; }
+body.is-logged-out .account { display: none; }
+.install-banner, .update-banner {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 29;
+}
 .install-banner {
-  position: sticky; bottom: 0; z-index: 29; display: flex; align-items: center;
+  display: flex; align-items: center;
   justify-content: space-between; gap: 12px; flex-wrap: wrap;
   background: #2457a6; color: #fff; padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
   font-size: 15px; font-weight: 700;
 }
+body.has-install-banner { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+.update-banner { bottom: 0; }
+body.has-install-banner .update-banner { bottom: calc(64px + env(safe-area-inset-bottom)); }
 .install-banner-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .install-banner .button.primary { background: #fff; color: var(--blue); }
 body.drill-live .user-secondary { display: none; }
+body.drill-live .install-banner { display: none !important; }
 body.drill-live .incident-panel.active { padding: 28px 24px; }
 body.drill-live .incident-panel h2 { font-size: 30px; }
 body.drill-live .ack-main { min-height: 72px; font-size: 20px; }

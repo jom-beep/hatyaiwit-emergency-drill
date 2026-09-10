@@ -154,12 +154,10 @@ async function refreshReadiness() {
 
 function refreshInstallBanner(ready) {
   const banner = $("#install-banner");
-  if (ready || isStandalone()) {
+  const hide = Boolean(ready || isStandalone() || sessionStorage.getItem("hyw-install-dismissed") === "1");
+  if (hide) {
     banner.classList.add("hidden");
-    return;
-  }
-  if (sessionStorage.getItem("hyw-install-dismissed") === "1") {
-    banner.classList.add("hidden");
+    document.body.classList.remove("has-install-banner");
     return;
   }
   const ios = isIos();
@@ -168,6 +166,7 @@ function refreshInstallBanner(ready) {
     : "ติดตั้งแอปบนหน้าจอหลัก เพื่อรับแจ้งเตือนตอนซ้อม";
   $("#install-banner-action").textContent = state.deferredInstall && !ios ? "ติดตั้ง" : "ดูวิธีติดตั้ง";
   banner.classList.remove("hidden");
+  document.body.classList.add("has-install-banner");
 }
 
 async function handleInstallAction() {
@@ -765,6 +764,7 @@ async function init() {
   }
 
   hideBoot();
+  document.body.classList.remove("is-logged-out");
   $("#login-panel").classList.add("hidden");
   $("#app-panel").classList.remove("hidden");
   $("#logout-button").classList.remove("hidden");
@@ -807,6 +807,7 @@ $("#install-banner-action").addEventListener("click", handleInstallAction);
 $("#install-banner-dismiss").addEventListener("click", () => {
   sessionStorage.setItem("hyw-install-dismissed", "1");
   $("#install-banner").classList.add("hidden");
+  document.body.classList.remove("has-install-banner");
 });
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
