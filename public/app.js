@@ -31,11 +31,18 @@ const state = {
   ackResponse: null,
   ackedIncidentId: null,
   deferredInstall: null,
+  demoApi: null,
+  selectedTemplateId: null,
 };
+
+function isDemoMode() {
+  return location.pathname.replace(/\/+$/, "") === "/demo" || new URLSearchParams(location.search).get("demo") === "1";
+}
 
 const $ = (selector) => document.querySelector(selector);
 
 async function api(path, options = {}) {
+  if (state.demoApi) return state.demoApi.handle(path, options);
   const response = await fetch(path, {
     credentials: "same-origin",
     ...options,
@@ -233,21 +240,47 @@ function incidentIsLive(incident) {
 function renderAckStatus() {
   const box = $("#ack-status");
   const sameIncident = state.incident && state.ackedIncidentId === state.incident.id;
+  const safeButton = $("#safe-button");
+  const helpButton = $("#help-button");
+  const ackButton = $("#ack-button");
+  const demo = Boolean(state.demoApi);
+
   if (!state.incident || state.incident.status === "RESOLVED" || !sameIncident || !state.ackResponse) {
     box.classList.add("hidden");
     box.textContent = "";
-    $("#ack-button").disabled = false;
-    $("#ack-button").textContent = "รับทราบ";
+    ackButton.disabled = false;
+    ackButton.textContent = "รับทราบ";
+    ackButton.classList.remove("hidden");
+    if (demo) {
+      safeButton.classList.add("hidden");
+      helpButton.classList.add("hidden");
+    } else {
+      helpButton.classList.remove("hidden");
+    }
     return;
   }
+
   box.classList.remove("hidden");
+  if (demo) {
+    ackButton.classList.add("hidden");
+    safeButton.classList.remove("hidden");
+    helpButton.classList.remove("hidden");
+    helpButton.textContent = "ต้องการช่วยเหลือ";
+    safeButton.classList.toggle("is-active", state.ackResponse === "SAFE");
+    helpButton.classList.toggle("is-active", state.ackResponse === "NEED_HELP");
+    if (state.ackResponse === "NEED_HELP") box.textContent = "ส่งคำขอความช่วยเหลือแล้ว — ศูนย์ควบคุมได้รับเรื่อง";
+    else if (state.ackResponse === "SAFE") box.textContent = "บันทึกสถานะ ปลอดภัย แล้ว";
+    else box.textContent = "รับทราบแล้ว — เลือก ปลอดภัย หรือ ต้องการช่วยเหลือ";
+    return;
+  }
+
   if (state.ackResponse === "NEED_HELP") {
     box.textContent = "ส่งคำขอความช่วยเหลือแล้ว — ศูนย์ควบคุมได้รับเรื่อง";
-    $("#ack-button").textContent = "รับทราบแล้ว";
+    ackButton.textContent = "รับทราบแล้ว";
   } else {
     box.textContent = "รับทราบแล้ว";
-    $("#ack-button").textContent = "รับทราบแล้ว";
-    $("#ack-button").disabled = true;
+    ackButton.textContent = "รับทราบแล้ว";
+    ackButton.disabled = true;
   }
 }
 
@@ -309,6 +342,16 @@ function renderIncident(incident) {
 }
 
 function connectRealtime() {
+  if (state.demoApi) {
+    setConnectionStatus(true);
+    state.demoApi.subscribe((message) => {
+      if (message?.type === "incident_state") {
+        renderIncident(message.incident);
+        if (state.me?.role === "commander") refreshDashboard();
+      }
+    });
+    return;
+  }
   if (state.socket && state.socket.readyState < 2) return;
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(`${protocol}//${location.host}/api/ws`);
@@ -471,6 +514,7 @@ async function activateDrill() {
         type: $("#drill-type").value,
         zone: $("#drill-zone").value,
         instruction: $("#drill-instruction").value,
+        ...(state.selectedTemplateId ? { templateId: state.selectedTemplateId } : {}),
       }),
     });
     renderIncident(result.incident);
@@ -512,8 +556,103 @@ async function refreshDashboard() {
     $("#metric-ack").textContent = countStatus(result.acknowledgement?.results, "ACK");
     $("#metric-help").textContent = countStatus(result.acknowledgement?.results, "NEED_HELP");
     renderIncident(result.incident);
+    renderDemoCommandCenter(result);
   } catch (error) {
     toast(error.message);
+  }
+}
+
+function renderZoneGroups(selector, groups) {
+  const root = $(selector);
+  if (!root) return;
+  if (!groups?.length) {
+    root.replaceChildren();
+    return;
+  }
+  root.replaceChildren(
+    ...groups.map((group) => {
+      const wrap = document.createElement("div");
+      wrap.className = "zone-group";
+      const heading = document.createElement("h3");
+      const name = document.createElement("span");
+      name.textContent = group.zoneName;
+      const count = document.createElement("span");
+      count.textContent = `${group.count} คน`;
+      heading.append(name, count);
+      const list = document.createElement("ul");
+      for (const person of group.people) {
+        const item = document.createElement("li");
+        const who = document.createElement("span");
+        who.textContent = `${person.name} · ${person.role}`;
+        const room = document.createElement("span");
+        room.className = "room";
+        room.textContent = person.room;
+        item.append(who, room);
+        list.append(item);
+      }
+      wrap.append(heading, list);
+      return wrap;
+    }),
+  );
+}
+
+function renderDemoCommandCenter(result) {
+  if (!state.demoApi || !result?.rollup) return;
+  const rollup = result.rollup;
+  const format = (value) => Number(value || 0).toLocaleString("th-TH");
+  $("#metric-ack").textContent = format(rollup.responded);
+  $("#metric-help").textContent = format(rollup.needHelp);
+  $("#metric-safe").textContent = format(rollup.safe);
+  $("#metric-silent").textContent = format(rollup.silent);
+  $("#metric-ack-rate").textContent = `${Math.round(rollup.ackRate * 100)}%`;
+
+  const live = incidentIsLive(result.incident);
+  $("#nonresponder-panel").classList.toggle("hidden", !live);
+  $("#nonresponder-count").textContent = format(rollup.silent);
+  renderZoneGroups("#nonresponder-zones", rollup.nonRespondersByZone);
+  $("#nonresponder-empty").classList.toggle("hidden", rollup.silent > 0);
+
+  const after = result.afterAction;
+  $("#afteraction-panel").classList.toggle("hidden", !after);
+  if (!after) return;
+  $("#afteraction-title").textContent = `${after.title} · ${after.durationMinutes} นาที`;
+  $("#afteraction-rate").textContent = `${after.ackPercent}%`;
+  $("#afteraction-responded").textContent = `${format(after.responded)} / ${format(after.totalPeople)}`;
+  $("#afteraction-safe").textContent = format(after.safe);
+  $("#afteraction-help").textContent = format(after.needHelp);
+  renderZoneGroups("#afteraction-silent", after.nonRespondersByZone);
+}
+
+function renderDrillTemplates() {
+  const root = $("#drill-templates");
+  if (!root || !state.demoApi) return;
+  const templates = state.config?.templates || [];
+  root.replaceChildren(
+    ...templates.map((template) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "template-card";
+      button.dataset.template = template.id;
+      const title = document.createElement("span");
+      title.textContent = template.labelTh;
+      const hint = document.createElement("small");
+      hint.textContent = "นี่คือการฝึกซ้อม · DRILL";
+      button.append(title, hint);
+      button.addEventListener("click", () => selectDrillTemplate(template));
+      return button;
+    }),
+  );
+  const current = templates.find((item) => item.id === state.selectedTemplateId) || templates[0];
+  if (current) selectDrillTemplate(current);
+}
+
+function selectDrillTemplate(template) {
+  state.selectedTemplateId = template.id;
+  const typeSelect = $("#drill-type");
+  if (typeSelect.querySelector(`option[value="${template.type}"]`)) typeSelect.value = template.type;
+  $("#drill-instruction").value = template.instruction;
+  for (const button of document.querySelectorAll(".template-card")) {
+    button.classList.toggle("is-active", button.dataset.template === template.id);
   }
 }
 
@@ -732,19 +871,68 @@ function setView(view) {
 }
 
 async function logout() {
+  if (state.demoApi) {
+    location.href = "/";
+    return;
+  }
   await fetch("/auth/logout", { method: "POST", credentials: "same-origin" });
   location.reload();
+}
+
+function applyDemoIdentity(me) {
+  state.me = me;
+  state.ackResponse = me.ackResponse || null;
+  state.ackedIncidentId = me.ackedIncidentId || null;
+  const roleLabel = ROLE_LABEL[me.role] || me.role;
+  $("#account-label").textContent = `${me.displayName || me.email} · ${roleLabel}`;
+  for (const button of document.querySelectorAll(".demo-id")) {
+    button.classList.toggle("is-active", button.dataset.identity === me.identityId);
+  }
+  $("#view-switch").classList.remove("hidden");
+  if (me.role === "commander") setView("admin");
+  else setView("user");
+  renderAckStatus();
+}
+
+async function switchDemoIdentity(id) {
+  try {
+    const me = await api("/api/demo/identity", { method: "POST", body: JSON.stringify({ id }) });
+    applyDemoIdentity(me);
+    const active = await api("/api/incidents/active");
+    renderIncident(active.incident);
+    if (me.role === "commander") await refreshDashboard();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function resetDemo() {
+  try {
+    await api("/api/demo/reset", { method: "POST", body: "{}" });
+    toast("รีเซ็ตข้อมูลจำลองแล้ว");
+    location.reload();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 async function init() {
   showLoginErrorFromUrl();
   $("#login-panel").classList.add("hidden");
+  if (isDemoMode()) {
+    const { createDemoApi } = await import("/demo-mock.js");
+    state.demoApi = createDemoApi({ storage: window.sessionStorage });
+    document.body.classList.add("demo-mode");
+    $("#logout-button").textContent = "ออกจากโหมดสาธิต";
+    $("#help-button").textContent = "ต้องการช่วยเหลือ";
+  }
   try {
     state.config = await api("/api/config");
     $("#school-name").textContent = state.config.schoolName;
     // แสดงโดเมนที่อนุญาตจากค่าจริงของเซิร์ฟเวอร์ ไม่ฝังไว้ในหน้าเว็บ
     $("#allowed-domain").textContent = "@" + state.config.googleDomain;
     fillZones();
+    if (state.demoApi) renderDrillTemplates();
   } catch (error) {
     showBootError(error.message || "เชื่อมต่อระบบไม่ได้");
     return;
@@ -768,23 +956,27 @@ async function init() {
   $("#login-panel").classList.add("hidden");
   $("#app-panel").classList.remove("hidden");
   $("#logout-button").classList.remove("hidden");
-  const roleLabel = ROLE_LABEL[state.me.role] || state.me.role;
-  $("#account-label").textContent = `${state.me.email} · ${roleLabel}`;
-  if (state.me.role === "commander") {
-    $("#view-switch").classList.remove("hidden");
-    setView("admin");
+  if (state.demoApi) {
+    applyDemoIdentity(state.me);
   } else {
-    $("#admin-view").remove();
+    const roleLabel = ROLE_LABEL[state.me.role] || state.me.role;
+    $("#account-label").textContent = `${state.me.email} · ${roleLabel}`;
+    if (state.me.role === "commander") {
+      $("#view-switch").classList.remove("hidden");
+      setView("admin");
+    } else {
+      $("#admin-view").remove();
+    }
   }
 
-  if ("serviceWorker" in navigator) await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-  await refreshReadiness();
+  if (!state.demoApi && "serviceWorker" in navigator) await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  if (!state.demoApi) await refreshReadiness();
   const active = await api("/api/incidents/active");
   renderIncident(active.incident);
   connectRealtime();
   if (state.me.role === "commander") {
     await refreshDashboard();
-    await refreshRoster();
+    if (!state.demoApi) await refreshRoster();
   }
 }
 
@@ -798,6 +990,7 @@ $("#invite-token").addEventListener("paste", (event) => {
   $("#invite-token").value = text.replace(/\s+/g, "");
 });
 $("#ack-button").addEventListener("click", () => acknowledge("ACK"));
+$("#safe-button").addEventListener("click", () => acknowledge("SAFE"));
 $("#help-button").addEventListener("click", () => acknowledge("NEED_HELP"));
 $("#logout-button").addEventListener("click", logout);
 $("#update-now").addEventListener("click", applyUpdate);
@@ -834,6 +1027,11 @@ $("#open-guide").addEventListener("click", openInstallGuide);
 $("#guide-close").addEventListener("click", closeInstallGuide);
 $("#guide-tab-ios").addEventListener("click", () => setGuideTab("ios"));
 $("#guide-tab-android").addEventListener("click", () => setGuideTab("android"));
+$("#demo-reset").addEventListener("click", resetDemo);
+$("#demo-identities").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-identity]");
+  if (button) switchDemoIdentity(button.dataset.identity);
+});
 
 const holdButton = $("#activate-drill");
 holdButton.addEventListener("pointerdown", beginHold);

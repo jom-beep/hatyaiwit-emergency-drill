@@ -19,7 +19,7 @@
     "COOKIE_SECURE": "true",
     "LOG_RETENTION_DAYS": "90",
     "SUBSCRIPTION_STALE_DAYS": "180",
-    "APP_VERSION": "0.6.0",
+    "APP_VERSION": "0.7.0",
     "ESCALATION_STEP_SECONDS": "30"
   },
   "triggers": {
