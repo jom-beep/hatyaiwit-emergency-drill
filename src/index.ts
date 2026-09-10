@@ -4,9 +4,11 @@ import {
   beginGoogleLogin,
   finishGoogleLogin,
   hashInviteToken,
+  loginErrorRedirect,
   logout,
   requireRole,
 } from "./auth";
+import { mapAuthFailure } from "./login-errors";
 import {
   HttpError,
   assertJsonSameOrigin,
@@ -76,8 +78,9 @@ async function createCommanderInvites(request: Request, env: Env, user: Authenti
 
 async function redeemCommanderInvite(request: Request, env: Env, user: AuthenticatedUser): Promise<Response> {
   const input = await body<{ token?: string }>(request);
-  if (!input.token || input.token.length < 20) throw new HttpError(400, "รหัสเชิญไม่ถูกต้อง");
-  const tokenHash = await hashInviteToken(input.token);
+  const inviteToken = String(input.token ?? "").replace(/\s+/g, "");
+  if (!inviteToken || inviteToken.length < 20) throw new HttpError(400, "รหัสเชิญไม่ถูกต้องหรือไม่ครบ");
+  const tokenHash = await hashInviteToken(inviteToken);
   const now = new Date().toISOString();
   const results = await env.DB.batch([
     env.DB.prepare(
@@ -458,9 +461,18 @@ async function handle(request: Request, env: Env): Promise<Response> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
     try {
       return securityHeaders(await handle(request, env));
     } catch (error) {
+      if (url.pathname.startsWith("/auth/")) {
+        const code = mapAuthFailure({
+          status: error instanceof HttpError ? error.status : undefined,
+          message: error instanceof Error ? error.message : undefined,
+          googleError: url.searchParams.get("error"),
+        });
+        return securityHeaders(loginErrorRedirect(env, code));
+      }
       if (error instanceof HttpError) return securityHeaders(json({ error: error.message }, { status: error.status }));
       console.error("Unhandled request error", error instanceof Error ? error.message : "unknown");
       return securityHeaders(json({ error: "ระบบขัดข้องชั่วคราว" }, { status: 500 }));

@@ -9,6 +9,7 @@ import {
   randomToken,
   sha256,
 } from "./security";
+import { type LoginErrorCode, mapAuthFailure } from "./login-errors";
 
 const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 const SESSION_COOKIE = "hyw_session";
@@ -82,8 +83,18 @@ export async function beginGoogleLogin(request: Request, env: Env): Promise<Resp
   return new Response(null, { status: 302, headers });
 }
 
+export function loginErrorRedirect(env: Env, code: LoginErrorCode): Response {
+  const headers = new Headers({ Location: `/?login_error=${code}` });
+  headers.append("Set-Cookie", cookie(OAUTH_COOKIE, "", env, 0));
+  return new Response(null, { status: 302, headers });
+}
+
 export async function finishGoogleLogin(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
+  const googleError = url.searchParams.get("error");
+  if (googleError) {
+    return loginErrorRedirect(env, mapAuthFailure({ googleError }));
+  }
   const stateCookie = await verifyObject<OAuthState>(parseCookies(request)[OAUTH_COOKIE], env.SESSION_SECRET);
   if (!stateCookie || stateCookie.expiresAt < Date.now() || stateCookie.state !== url.searchParams.get("state")) {
     throw new HttpError(400, "OAuth state ไม่ถูกต้องหรือหมดอายุ");
