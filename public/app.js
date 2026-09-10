@@ -418,7 +418,13 @@ async function acknowledge(response) {
     state.ackResponse = response;
     state.ackedIncidentId = incidentId;
     renderAckStatus();
-    toast(response === "ACK" ? "บันทึกการรับทราบแล้ว" : "ส่งคำขอความช่วยเหลือไปยังศูนย์ควบคุมแล้ว");
+    toast(
+      response === "ACK"
+        ? "บันทึกการรับทราบแล้ว"
+        : response === "SAFE"
+          ? "บันทึกสถานะปลอดภัยแล้ว"
+          : "ส่งคำขอความช่วยเหลือไปยังศูนย์ควบคุมแล้ว",
+    );
   } catch (error) {
     $("#ack-button").disabled = false;
     toast(error.message);
