@@ -45,18 +45,13 @@ consent screen เป็น **Internal** ได้ ซึ่งแปลว่�
 
 เพราะคุณเป็นแอดมินของ Workspace นี้ จึงไม่ติดปัญหา API controls ที่ผมเตือนไว้รอบก่อน
 
-### 3. แก้ข้อความบนหน้าล็อกอิน
+### 3. ข้อความบนหน้าล็อกอิน
 
-หน้าเว็บฝังคำว่า `@hatyaiwit.ac.th` ไว้ตรง ๆ หนึ่งจุด ถ้าไม่แก้ ตอนสาธิตจะขึ้นว่า
-"รองรับเฉพาะบัญชี @hatyaiwit.ac.th" แต่คุณล็อกอินด้วย khanchai ซึ่งจะทำให้คนดูงง
+หน้าเว็บดึงโดเมนจาก `/api/config` (`ALLOWED_GOOGLE_DOMAIN`) อัตโนมัติแล้ว ไม่ต้องแปะ patch
+ถ้าเปลี่ยนโดเมนใน `wrangler.jsonc` ข้อความ `@…` บนหน้าล็อกอินจะตามไปเอง
 
-patch เล็ก ๆ ที่แนบมาแก้ให้ดึงค่าจากเซิร์ฟเวอร์แทน หลังจากนี้ข้อความจะเปลี่ยนตาม
-`ALLOWED_GOOGLE_DOMAIN` อัตโนมัติ ตอนสลับกลับไป hatyaiwit ก็ไม่ต้องแก้อะไรอีก
+ตอนนี้ยังตั้ง `ALLOWED_GOOGLE_DOMAIN` เป็น `khanchai.ac.th` ตามที่เจ้าของระบบต้องการ — อย่าสลับเป็น `hatyaiwit.ac.th` จนกว่าจะถึงขั้นส่งมอบ
 
-```bash
-cd ~/hatyaiwit-emergency-drill
-patch -p1 < deploy/show-allowed-domain.patch
-```
 
 ---
 
@@ -136,7 +131,7 @@ npx wrangler secret put SESSION_SECRET      # ค่าใหม่ ทุกค
 
 ## สรุปสิ่งที่ต้องทำวันนี้
 
-- [ ] `patch -p1 < deploy/show-allowed-domain.patch`
+- [ ] ตรวจว่าหน้าล็อกอินแสดง `@khanchai.ac.th` จากเซิร์ฟเวอร์ (ไม่ต้องแปะ patch)
 - [ ] แก้ `ALLOWED_GOOGLE_DOMAIN` เป็น `khanchai.ac.th` และ `SCHOOL_NAME` เติม "(ระบบทดลอง)"
 - [ ] สร้าง OAuth client ในโปรเจกต์ใต้ Workspace khanchai แบบ **Internal**
 - [ ] `npm run dev` แล้วลองล็อกอินด้วยบัญชี khanchai ของตัวเอง

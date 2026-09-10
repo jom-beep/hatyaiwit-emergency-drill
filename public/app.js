@@ -1,3 +1,19 @@
+const LOGIN_ERRORS = {
+  domain: "บัญชีนี้ไม่ใช่โดเมนที่โรงเรียนอนุญาต กรุณาใช้บัญชี Google Workspace ของโรงเรียน",
+  expired: "การเข้าสู่ระบบหมดเวลาหรือไม่สมบูรณ์ กรุณากดเข้าสู่ระบบอีกครั้ง",
+  denied: "ยกเลิกการเข้าสู่ระบบแล้ว กดปุ่มด้านล่างเมื่อพร้อม",
+  disabled: "บัญชีนี้ถูกปิดการใช้งาน กรุณาติดต่อผู้ดูแลของโรงเรียน",
+  generic: "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่ หากยังไม่ได้ให้ผู้ดูแลตรวจค่า OAuth",
+};
+
+const ROLE_LABEL = {
+  commander: "ผู้ประกาศ",
+  member: "ผู้รับแจ้ง",
+  teacher: "ครู",
+  security: "เจ้าหน้าที่ความปลอดภัย",
+  system_admin: "ผู้ดูแลระบบ",
+};
+
 const state = {
   config: null,
   me: null,
@@ -7,10 +23,14 @@ const state = {
   holdActive: false,
   actionToken: null,
   socket: null,
+  pingTimer: null,
   view: "admin",
   version: null,
   updatePending: false,
   reportsTimer: null,
+  ackResponse: null,
+  ackedIncidentId: null,
+  deferredInstall: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -62,15 +82,49 @@ function base64urlToUint8Array(value) {
 }
 
 function fillZones() {
+  const zones = state.config?.zones || [];
+  $("#zones-empty").classList.toggle("hidden", zones.length > 0);
   for (const select of [$("#device-zone"), $("#report-zone"), $("#drill-zone")]) {
+    if (!select) continue;
     select.replaceChildren();
-    for (const zone of state.config.zones) {
+    for (const zone of zones) {
       const option = document.createElement("option");
       option.value = zone.id;
       option.textContent = zone.name;
       select.append(option);
     }
   }
+}
+
+function setConnectionStatus(live) {
+  const element = $("#connection-status");
+  if (!element) return;
+  element.textContent = live ? "เชื่อมต่อศูนย์ควบคุมแล้ว" : "กำลังเชื่อมต่อใหม่…";
+  element.classList.toggle("is-live", live);
+}
+
+function showLoginErrorFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get("login_error");
+  const message = LOGIN_ERRORS[code];
+  if (!message) return;
+  const box = $("#login-error");
+  box.textContent = message;
+  box.classList.remove("hidden");
+  params.delete("login_error");
+  const next = `${location.pathname}${params.toString() ? `?${params}` : ""}${location.hash}`;
+  history.replaceState({}, "", next);
+}
+
+function hideBoot() {
+  $("#boot-screen").classList.add("hidden");
+}
+
+function showBootError(message) {
+  hideBoot();
+  $("#boot-error-text").textContent = message;
+  $("#boot-error").classList.remove("hidden");
+  $("#login-panel").classList.add("hidden");
 }
 
 async function refreshReadiness() {
@@ -95,6 +149,40 @@ async function refreshReadiness() {
   $("#readiness-score").textContent = `${score}/3`;
   $("#ios-help").classList.toggle("hidden", !isIos() || isStandalone());
   $("#enable-push").textContent = score === 3 ? "อัปเดตพื้นที่ของอุปกรณ์" : "เปิดการแจ้งเตือนเครื่องนี้";
+  refreshInstallBanner(score === 3);
+}
+
+function refreshInstallBanner(ready) {
+  const banner = $("#install-banner");
+  if (ready || isStandalone()) {
+    banner.classList.add("hidden");
+    return;
+  }
+  if (sessionStorage.getItem("hyw-install-dismissed") === "1") {
+    banner.classList.add("hidden");
+    return;
+  }
+  const ios = isIos();
+  $("#install-banner-text").textContent = ios
+    ? "iPhone/iPad: ติดตั้งลงหน้าจอโฮมด้วย Safari ก่อน จึงจะรับแจ้งเตือนได้"
+    : "ติดตั้งแอปบนหน้าจอหลัก เพื่อรับแจ้งเตือนตอนซ้อม";
+  $("#install-banner-action").textContent = state.deferredInstall && !ios ? "ติดตั้ง" : "ดูวิธีติดตั้ง";
+  banner.classList.remove("hidden");
+}
+
+async function handleInstallAction() {
+  if (state.deferredInstall) {
+    try {
+      state.deferredInstall.prompt();
+      await state.deferredInstall.userChoice;
+    } catch {
+      openInstallGuide();
+    }
+    state.deferredInstall = null;
+    $("#install-banner").classList.add("hidden");
+    return;
+  }
+  openInstallGuide();
 }
 
 async function enablePush() {
@@ -139,11 +227,38 @@ async function enablePush() {
   }
 }
 
+function incidentIsLive(incident) {
+  return Boolean(incident && incident.status !== "RESOLVED");
+}
+
+function renderAckStatus() {
+  const box = $("#ack-status");
+  const sameIncident = state.incident && state.ackedIncidentId === state.incident.id;
+  if (!state.incident || state.incident.status === "RESOLVED" || !sameIncident || !state.ackResponse) {
+    box.classList.add("hidden");
+    box.textContent = "";
+    $("#ack-button").disabled = false;
+    $("#ack-button").textContent = "รับทราบ";
+    return;
+  }
+  box.classList.remove("hidden");
+  if (state.ackResponse === "NEED_HELP") {
+    box.textContent = "ส่งคำขอความช่วยเหลือแล้ว — ศูนย์ควบคุมได้รับเรื่อง";
+    $("#ack-button").textContent = "รับทราบแล้ว";
+  } else {
+    box.textContent = "รับทราบแล้ว";
+    $("#ack-button").textContent = "รับทราบแล้ว";
+    $("#ack-button").disabled = true;
+  }
+}
+
 function renderIncident(incident) {
   state.incident = incident;
   const panel = $("#incident-panel");
   const actions = $("#incident-actions");
-  panel.classList.remove("idle", "active", "resolved");
+  panel.classList.remove("idle", "active", "resolved", "pending");
+  const live = incidentIsLive(incident);
+  document.body.classList.toggle("drill-live", live);
   if (!incident) {
     panel.classList.add("idle");
     $("#incident-mode").textContent = "พร้อมรับแจ้งเตือน";
@@ -151,20 +266,47 @@ function renderIncident(incident) {
     $("#incident-instruction").textContent = "ระบบเชื่อมต่อกับศูนย์ควบคุมแล้ว";
     $("#incident-meta").textContent = "";
     actions.classList.add("hidden");
-    $("#resolve-drill").classList.add("hidden");
+    $("#commander-start")?.classList.remove("hidden");
+    $("#commander-end")?.classList.add("hidden");
+    const heading = $("#commander-heading");
+    if (heading) heading.textContent = "เริ่มการฝึกซ้อม";
+    $("#dashboard-empty")?.classList.remove("hidden");
+    state.ackResponse = null;
+    state.ackedIncidentId = null;
+    renderAckStatus();
     return;
   }
   const resolved = incident.status === "RESOLVED";
+  const pending = incident.status === "RESOLUTION_PENDING";
   if (resolved && state.updatePending) window.setTimeout(applyUpdate, 3000);
-  panel.classList.add(resolved ? "resolved" : "active");
-  $("#incident-mode").textContent = resolved ? "DRILL ENDED" : "DRILL ACTIVE";
+  panel.classList.add(resolved ? "resolved" : pending ? "pending" : "active");
+  $("#incident-mode").textContent = resolved
+    ? "การฝึกซ้อมสิ้นสุดแล้ว"
+    : pending
+      ? "รอผู้ประกาศคนที่ 2 ยืนยันยุติ"
+      : "กำลังฝึกซ้อม";
   $("#incident-title").textContent = resolved ? "การฝึกซ้อมสิ้นสุดแล้ว" : incident.title;
   $("#incident-instruction").textContent = resolved
     ? "กรุณารอคำแนะนำจากโรงเรียนก่อนกลับเข้าสู่กิจกรรมตามปกติ"
     : incident.instruction;
   $("#incident-meta").textContent = `รหัส ${incident.id} · พื้นที่ ${incident.zone} · เวอร์ชัน ${incident.version}`;
   actions.classList.toggle("hidden", resolved);
-  if (state.me?.role === "commander") $("#resolve-drill").classList.toggle("hidden", resolved);
+  if (state.ackedIncidentId !== incident.id) {
+    state.ackResponse = null;
+    state.ackedIncidentId = null;
+  }
+  renderAckStatus();
+  if (state.me?.role === "commander") {
+    $("#commander-start")?.classList.toggle("hidden", !resolved);
+    $("#commander-end")?.classList.toggle("hidden", resolved);
+    const heading = $("#commander-heading");
+    if (heading) heading.textContent = resolved ? "เริ่มการฝึกซ้อม" : "ยุติการฝึกซ้อม";
+    const hint = $("#resolve-hint");
+    if (hint) hint.textContent = pending
+      ? "มีผู้ประกาศยืนยันแล้ว 1 คน ต้องการอีก 1 คนจึงจะยุติ"
+      : "การยุติต้องได้รับการยืนยันจากผู้ประกาศ 2 คนที่ต่างกัน";
+    $("#dashboard-empty")?.classList.toggle("hidden", true);
+  }
 }
 
 function connectRealtime() {
@@ -172,6 +314,8 @@ function connectRealtime() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(`${protocol}//${location.host}/api/ws`);
   state.socket = socket;
+  setConnectionStatus(false);
+  socket.addEventListener("open", () => setConnectionStatus(true));
   socket.addEventListener("message", (event) => {
     if (event.data === "pong") return;
     try {
@@ -184,8 +328,12 @@ function connectRealtime() {
       // Ignore malformed real-time messages.
     }
   });
-  socket.addEventListener("close", () => window.setTimeout(connectRealtime, 3000));
-  window.setInterval(() => {
+  socket.addEventListener("close", () => {
+    setConnectionStatus(false);
+    window.setTimeout(connectRealtime, 3000);
+  });
+  if (state.pingTimer) window.clearInterval(state.pingTimer);
+  state.pingTimer = window.setInterval(() => {
     if (socket.readyState === WebSocket.OPEN) socket.send("ping");
   }, 25_000);
 }
@@ -213,33 +361,66 @@ async function submitReport(event) {
 }
 
 async function acknowledge(response) {
-  if (!state.incident) return;
+  if (!state.incident || state.incident.status === "RESOLVED") return;
+  const incidentId = state.incident.id;
+  $("#ack-button").disabled = response === "ACK";
   try {
     await api("/api/acknowledgements", {
       method: "POST",
       body: JSON.stringify({
-        incidentId: state.incident.id,
+        incidentId,
         response,
         zone: $("#device-zone").value,
       }),
     });
+    state.ackResponse = response;
+    state.ackedIncidentId = incidentId;
+    renderAckStatus();
     toast(response === "ACK" ? "บันทึกการรับทราบแล้ว" : "ส่งคำขอความช่วยเหลือไปยังศูนย์ควบคุมแล้ว");
   } catch (error) {
+    $("#ack-button").disabled = false;
     toast(error.message);
   }
 }
 
+function setInviteStatus(message, ok) {
+  const box = $("#invite-status");
+  box.textContent = message;
+  box.classList.toggle("is-ok", ok === true);
+  box.classList.toggle("is-error", ok === false);
+}
+
 async function redeemInvite(event) {
   event.preventDefault();
-  const token = $("#invite-token").value.trim();
-  if (!token) return;
+  const token = $("#invite-token").value.replace(/\s+/g, "");
+  $("#invite-token").value = token;
+  if (!token) {
+    setInviteStatus("กรุณาวางรหัสเชิญ", false);
+    return;
+  }
+  if (token.length < 20) {
+    setInviteStatus("รหัสยังไม่ครบ กรุณาวางรหัสทั้งชุด", false);
+    return;
+  }
+  const submit = event.submitter;
+  if (submit) submit.disabled = true;
+  setInviteStatus("กำลังตรวจสอบรหัส…", null);
   try {
-    await api("/api/commander/redeem", { method: "POST", body: JSON.stringify({ token }) });
+    const result = await api("/api/commander/redeem", { method: "POST", body: JSON.stringify({ token }) });
     $("#invite-token").value = "";
+    const callSign = result.callSign ? ` ป้ายเรียกของคุณคือ ${result.callSign}` : "";
+    setInviteStatus(`ยืนยันสิทธิ์สำเร็จ${callSign} กำลังโหลดระบบใหม่`, true);
     toast("ยืนยันสิทธิ์สำเร็จ กำลังโหลดระบบใหม่");
     window.setTimeout(() => location.reload(), 1000);
   } catch (error) {
-    toast(error.message);
+    const message =
+      error.status === 409
+        ? "รหัสนี้ถูกใช้แล้วหรือหมดอายุ กรุณาขอรหัสใหม่จากผู้ดูแล"
+        : error.message;
+    setInviteStatus(message, false);
+    toast(message);
+  } finally {
+    if (submit) submit.disabled = false;
   }
 }
 
@@ -247,7 +428,7 @@ async function beginHold(event) {
   if (event.button !== undefined && event.button !== 0) return;
   event.preventDefault();
   const button = $("#activate-drill");
-  if (button.disabled || state.incident?.status === "ACTIVE") return;
+  if (button.disabled || incidentIsLive(state.incident)) return;
   state.holdActive = true;
   button.disabled = true;
   try {
@@ -301,6 +482,8 @@ async function activateDrill() {
 }
 
 async function resolveDrill() {
+  const button = $("#resolve-drill");
+  button.disabled = true;
   try {
     const result = await api("/api/incidents/resolve", { method: "POST", body: "{}" });
     renderIncident(result.incident);
@@ -311,6 +494,8 @@ async function resolveDrill() {
     );
   } catch (error) {
     toast(error.message);
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -341,8 +526,10 @@ async function refreshRoster() {
     const result = await api("/api/commander/roster");
     $("#roster-capacity").textContent =
       `${result.capacity.active}/5 คน · ว่าง ${result.capacity.free}`;
+    const commanders = result.commanders || [];
+    $("#roster-empty").classList.toggle("hidden", commanders.length > 0);
     $("#roster-list").replaceChildren(
-      ...result.commanders.map((commander) => {
+      ...commanders.map((commander) => {
         const item = document.createElement("li");
         const label = document.createElement("span");
         label.textContent = commander.callSign;
@@ -413,6 +600,7 @@ async function refreshReports() {
     const list = result.reports || [];
     $("#reports-count").textContent = String(list.length);
     $("#reports-panel").classList.toggle("hidden", list.length === 0);
+    $("#reports-empty").classList.toggle("hidden", list.length > 0);
     $("#reports-list").replaceChildren(
       ...list.map((report) => {
         const item = document.createElement("li");
@@ -474,7 +662,7 @@ async function claimReport(reportId, button) {
 const VERSION_POLL_MS = 15 * 60 * 1000;
 
 function incidentIsActive() {
-  return Boolean(state.incident && state.incident.status !== "RESOLVED");
+  return incidentIsLive(state.incident);
 }
 
 function applyUpdate() {
@@ -550,30 +738,38 @@ async function logout() {
 }
 
 async function init() {
+  showLoginErrorFromUrl();
+  $("#login-panel").classList.add("hidden");
   try {
     state.config = await api("/api/config");
     $("#school-name").textContent = state.config.schoolName;
     // แสดงโดเมนที่อนุญาตจากค่าจริงของเซิร์ฟเวอร์ ไม่ฝังไว้ในหน้าเว็บ
-    // ทำให้สลับโดเมนทดลองกับโดเมนใช้งานจริงได้โดยแก้แค่ wrangler.jsonc
     $("#allowed-domain").textContent = "@" + state.config.googleDomain;
     fillZones();
   } catch (error) {
-    toast(error.message);
+    showBootError(error.message || "เชื่อมต่อระบบไม่ได้");
     return;
   }
 
   try {
     state.me = await api("/api/me");
   } catch (error) {
-    if (error.status === 401) return;
-    toast(error.message);
+    hideBoot();
+    if (error.status === 401) {
+      $("#login-panel").classList.remove("hidden");
+      refreshInstallBanner(false);
+      return;
+    }
+    showBootError(error.message);
     return;
   }
 
+  hideBoot();
   $("#login-panel").classList.add("hidden");
   $("#app-panel").classList.remove("hidden");
   $("#logout-button").classList.remove("hidden");
-  $("#account-label").textContent = `${state.me.email} · ${state.me.role}`;
+  const roleLabel = ROLE_LABEL[state.me.role] || state.me.role;
+  $("#account-label").textContent = `${state.me.email} · ${roleLabel}`;
   if (state.me.role === "commander") {
     $("#view-switch").classList.remove("hidden");
     setView("admin");
@@ -595,10 +791,28 @@ async function init() {
 $("#enable-push").addEventListener("click", enablePush);
 $("#report-form").addEventListener("submit", submitReport);
 $("#invite-form").addEventListener("submit", redeemInvite);
+$("#invite-token").addEventListener("paste", (event) => {
+  const text = event.clipboardData?.getData("text") ?? "";
+  if (!text) return;
+  event.preventDefault();
+  $("#invite-token").value = text.replace(/\s+/g, "");
+});
 $("#ack-button").addEventListener("click", () => acknowledge("ACK"));
 $("#help-button").addEventListener("click", () => acknowledge("NEED_HELP"));
 $("#logout-button").addEventListener("click", logout);
 $("#update-now").addEventListener("click", applyUpdate);
+$("#boot-retry").addEventListener("click", () => location.reload());
+$("#login-open-guide").addEventListener("click", openInstallGuide);
+$("#install-banner-action").addEventListener("click", handleInstallAction);
+$("#install-banner-dismiss").addEventListener("click", () => {
+  sessionStorage.setItem("hyw-install-dismissed", "1");
+  $("#install-banner").classList.add("hidden");
+});
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  state.deferredInstall = event;
+  refreshInstallBanner(state.pushRegistered);
+});
 navigator.serviceWorker?.addEventListener("message", (event) => {
   if (event.data?.payload?.kind === "report") refreshReports();
 });

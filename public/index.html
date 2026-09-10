@@ -9,12 +9,13 @@
     <meta name="apple-mobile-web-app-title" content="HYW Safety Drill" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
     <title>ระบบฝึกซ้อมแจ้งเหตุฉุกเฉิน</title>
     <link rel="stylesheet" href="/styles.css" />
     <script src="/app.js" defer></script>
   </head>
   <body>
-    <div class="drill-ribbon">DRILL ONLY · ระบบฝึกซ้อมเท่านั้น · ไม่ใช่เหตุจริง</div>
+    <div class="drill-ribbon">ฝึกซ้อมเท่านั้น · DRILL ONLY · ไม่ใช่เหตุจริง</div>
     <header class="topbar">
       <div class="brand">
         <img src="/icon.svg" alt="" width="44" height="44" />
@@ -33,35 +34,50 @@
       </div>
     </header>
 
+    <div id="boot-screen" class="boot-screen" role="status">กำลังโหลดระบบ…</div>
+    <section id="boot-error" class="card boot-error hidden">
+      <h2>เชื่อมต่อระบบไม่ได้</h2>
+      <p id="boot-error-text">ตรวจอินเทอร์เน็ตแล้วกดลองใหม่</p>
+      <button id="boot-retry" class="button primary wide" type="button">ลองใหม่</button>
+    </section>
+
     <main class="shell">
       <section id="login-panel" class="card login-card">
+        <div id="login-error" class="login-error hidden" role="alert"></div>
         <span class="eyebrow">บัญชีโรงเรียนเท่านั้น</span>
         <h2>เข้าสู่ระบบเพื่อรับการแจ้งเตือน</h2>
-        <p>รองรับเฉพาะบัญชี <strong id="allowed-domain">@hatyaiwit.ac.th</strong> ระบบไม่เก็บรหัสผ่าน Google</p>
+        <p>รองรับเฉพาะบัญชี Google Workspace <strong id="allowed-domain">ของโรงเรียน</strong> ระบบไม่เก็บรหัสผ่าน Google</p>
         <a class="button primary wide" href="/auth/login">เข้าสู่ระบบด้วย Google Workspace</a>
+        <p class="note">วันซ้อม: ติดตั้งแอปบนหน้าจอหลักก่อน แล้วค่อยเปิดการแจ้งเตือน</p>
+        <button id="login-open-guide" class="button ghost wide" type="button">วิธีติดตั้งบน iPhone / Android</button>
       </section>
 
       <div id="app-panel" class="hidden">
         <section id="incident-panel" class="incident-panel idle" aria-live="assertive">
-          <div>
-            <span id="incident-mode" class="pill">พร้อมรับแจ้งเตือน</span>
+          <div class="incident-copy">
+            <div class="incident-status-row">
+              <span id="incident-mode" class="pill">พร้อมรับแจ้งเตือน</span>
+              <span id="connection-status" class="connection-status">กำลังเชื่อมต่อ…</span>
+            </div>
             <h2 id="incident-title">ขณะนี้ไม่มีการฝึกซ้อม</h2>
             <p id="incident-instruction">ระบบกำลังเชื่อมต่อกับศูนย์ควบคุม</p>
             <small id="incident-meta"></small>
+            <p id="ack-status" class="ack-status hidden"></p>
           </div>
           <div id="incident-actions" class="incident-actions hidden">
-            <button id="ack-button" class="button success" type="button">รับทราบ</button>
+            <button id="ack-button" class="button success ack-main" type="button">รับทราบ</button>
             <button id="help-button" class="button danger-outline" type="button">ต้องการความช่วยเหลือ</button>
           </div>
         </section>
 
         <div id="user-view">
+        <div id="user-secondary" class="user-secondary">
         <div class="grid two-columns">
           <section class="card">
             <div class="section-heading">
               <div>
-                <span class="eyebrow">ความพร้อมของเครื่อง</span>
-                <h2>ตรวจสอบการรับแจ้งเตือน</h2>
+                <span class="eyebrow">ก่อนวันซ้อม</span>
+                <h2>เครื่องนี้พร้อมหรือยัง</h2>
               </div>
               <span id="readiness-score" class="score">0/3</span>
             </div>
@@ -73,12 +89,13 @@
             <button id="open-guide" class="button secondary wide" type="button">คู่มือติดตั้งทีละขั้น (iPhone/Android)</button>
             <label for="device-zone">พื้นที่ประจำของอุปกรณ์</label>
             <select id="device-zone"></select>
+            <p id="zones-empty" class="note hidden">ยังไม่มีรายการพื้นที่ในระบบ ให้ผู้ดูแลใส่ผังห้องก่อนวันซ้อม</p>
             <button id="enable-push" class="button primary wide" type="button">เปิดการแจ้งเตือนเครื่องนี้</button>
-            <p id="ios-help" class="note hidden">iPhone/iPad ต้อง "เพิ่มลงหน้าจอโฮม" ก่อน แล้วเปิดจากไอคอนที่ติดตั้ง จึงจะรับการแจ้งเตือนได้</p>
+            <p id="ios-help" class="note hidden">iPhone/iPad ต้อง "เพิ่มลงหน้าจอโฮม" ด้วย Safari ก่อน แล้วเปิดจากไอคอนที่ติดตั้ง จึงจะรับการแจ้งเตือนได้</p>
           </section>
 
           <section class="card">
-            <span class="eyebrow">รายงานให้ศูนย์ควบคุม</span>
+            <span class="eyebrow">ไม่ใช่การประกาศทั้งโรงเรียน</span>
             <h2>รายงานสิ่งผิดปกติ</h2>
             <form id="report-form">
               <label for="report-type">ประเภท</label>
@@ -95,21 +112,21 @@
               <textarea id="report-note" maxlength="300" rows="3" placeholder="ระบุสถานที่และสิ่งที่พบ โดยไม่เสี่ยงเข้าใกล้เหตุ"></textarea>
               <button class="button warning wide" type="submit">ส่งรายงานให้ศูนย์ควบคุม</button>
             </form>
-            <p class="note">การส่งรายงานไม่ใช่การประกาศทั้งโรงเรียน หากเป็นอันตรายเร่งด่วนให้ใช้ช่องทางฉุกเฉินของโรงเรียนและโทร 191</p>
+            <p class="note">ถ้าเป็นอันตรายเร่งด่วน ให้ใช้ช่องทางฉุกเฉินของโรงเรียนและโทร 191</p>
           </section>
         </div>
 
-        <section class="card compact">
-          <details>
-            <summary>มีรหัสเชิญสำหรับบทบาทพิเศษ</summary>
-            <form id="invite-form" class="inline-form">
-              <label class="sr-only" for="invite-token">รหัสเชิญ</label>
-              <input id="invite-token" type="password" autocomplete="one-time-code" placeholder="กรอกรหัสเชิญครั้งเดียว" />
-              <button class="button secondary" type="submit">ยืนยันรหัส</button>
-            </form>
-          </details>
+        <section class="card compact invite-card">
+          <h2>มีรหัสเชิญผู้ประกาศ?</h2>
+          <p class="note">วางรหัสที่ได้รับเป็นการส่วนตัว แล้วกดยืนยัน ใช้ได้ครั้งเดียว</p>
+          <form id="invite-form" class="inline-form">
+            <label class="sr-only" for="invite-token">รหัสเชิญ</label>
+            <input id="invite-token" type="text" inputmode="text" autocomplete="one-time-code" spellcheck="false" placeholder="วางรหัสเชิญที่นี่" />
+            <button class="button secondary" type="submit">ยืนยันรหัส</button>
+          </form>
+          <p id="invite-status" class="form-status" role="status"></p>
         </section>
-
+        </div>
         </div>
 
         <div id="admin-view" class="hidden">
@@ -122,44 +139,51 @@
             <span id="reports-count" class="pill commander-pill">0</span>
           </div>
           <ul id="reports-list" class="report-list"></ul>
+          <p id="reports-empty" class="empty-state hidden">ยังไม่มีรายงานรอรับเรื่อง</p>
           <p class="note">กดรับเรื่องเพื่อหยุดการไล่ระดับไปยังผู้ประกาศคนถัดไป</p>
         </section>
 
         <section id="commander-panel" class="card commander">
           <div class="section-heading">
             <div>
-              <span class="eyebrow">พื้นที่ควบคุมลับ</span>
-              <h2>เริ่มการฝึกซ้อม</h2>
+              <span class="eyebrow">ผู้ประกาศเท่านั้น</span>
+              <h2 id="commander-heading">เริ่มการฝึกซ้อม</h2>
             </div>
-            <span class="pill commander-pill">AUTHORIZED</span>
+            <span class="pill commander-pill">ผู้มีสิทธิ์</span>
           </div>
-          <div class="grid commander-fields">
-            <div>
-              <label for="drill-type">รูปแบบการฝึกซ้อม</label>
-              <select id="drill-type">
-                <option value="LOCKDOWN">ปิดพื้นที่</option>
-                <option value="EVACUATE">อพยพ</option>
-                <option value="SHELTER">อยู่ในพื้นที่ปลอดภัย</option>
-                <option value="MEDICAL">เหตุการแพทย์</option>
-                <option value="INFORMATION">ประกาศทั่วไป</option>
-              </select>
+
+          <div id="commander-start">
+            <div class="grid commander-fields">
+              <div>
+                <label for="drill-type">รูปแบบการฝึกซ้อม</label>
+                <select id="drill-type">
+                  <option value="LOCKDOWN">ปิดพื้นที่</option>
+                  <option value="EVACUATE">อพยพ</option>
+                  <option value="SHELTER">อยู่ในพื้นที่ปลอดภัย</option>
+                  <option value="MEDICAL">เหตุการแพทย์</option>
+                  <option value="INFORMATION">ประกาศทั่วไป</option>
+                </select>
+              </div>
+              <div>
+                <label for="drill-zone">พื้นที่รับประกาศ</label>
+                <select id="drill-zone"></select>
+              </div>
             </div>
-            <div>
-              <label for="drill-zone">พื้นที่รับประกาศ</label>
-              <select id="drill-zone"></select>
+            <label for="drill-instruction">คำแนะนำที่โรงเรียนอนุมัติ</label>
+            <textarea id="drill-instruction" rows="3" maxlength="240">นี่คือการฝึกซ้อม กรุณาปฏิบัติตามแผนฉุกเฉินของโรงเรียนและรอคำแนะนำเพิ่มเติม</textarea>
+            <div class="hold-wrap">
+              <button id="activate-drill" class="button hold-button" type="button">
+                <span>กดค้าง 3 วินาทีเพื่อเริ่มฝึกซ้อม</span>
+                <i></i>
+              </button>
+              <p>ปล่อยมือก่อนครบเวลาเพื่อยกเลิก · ระบบรับเฉพาะโหมดฝึกซ้อม</p>
             </div>
           </div>
-          <label for="drill-instruction">คำแนะนำที่โรงเรียนอนุมัติ</label>
-          <textarea id="drill-instruction" rows="3" maxlength="240">นี่คือการฝึกซ้อม กรุณาปฏิบัติตามแผนฉุกเฉินของโรงเรียนและรอคำแนะนำเพิ่มเติม</textarea>
-          <div class="hold-wrap">
-            <button id="activate-drill" class="button hold-button" type="button">
-              <span>กดค้าง 3 วินาทีเพื่อเริ่ม DRILL</span>
-              <i></i>
-            </button>
-            <p>ปล่อยมือก่อนครบเวลาเพื่อยกเลิก</p>
+
+          <div id="commander-end" class="commander-end hidden">
+            <p id="resolve-hint" class="resolve-hint">การยุติต้องได้รับการยืนยันจากผู้ประกาศ 2 คนที่ต่างกัน</p>
+            <button id="resolve-drill" class="button secondary wide" type="button">ยืนยันการยุติการฝึกซ้อม</button>
           </div>
-          <button id="resolve-drill" class="button secondary wide hidden" type="button">ยืนยันการยุติการฝึกซ้อม</button>
-          <p class="note">การยุติการฝึกซ้อมต้องได้รับการยืนยันจากผู้มีสิทธิ์ 2 คนที่แตกต่างกัน</p>
         </section>
 
         <section id="dashboard-panel" class="card commander">
@@ -170,6 +194,7 @@
             </div>
             <button id="refresh-dashboard" class="button ghost" type="button">รีเฟรช</button>
           </div>
+          <p id="dashboard-empty" class="empty-state">ยังไม่มีการฝึกซ้อม — จำนวนรับทราบจะขึ้นเมื่อเริ่มประกาศ</p>
           <div class="metrics">
             <div><strong id="metric-ready">–</strong><span>อุปกรณ์พร้อม</span></div>
             <div><strong id="metric-sent">–</strong><span>ส่ง Push สำเร็จ</span></div>
@@ -178,55 +203,68 @@
           </div>
         </section>
 
-        <section id="roster-panel" class="card commander">
-          <div class="section-heading">
-            <div>
-              <span class="eyebrow">การหมุนเวียนผู้ประกาศ</span>
-              <h2>จัดการสิทธิ์ผู้ประกาศ</h2>
+        <section id="roster-panel" class="card commander roster-card">
+          <details>
+            <summary>
+              <span>
+                <span class="eyebrow">ไม่ใช้ในระหว่างซ้อม</span>
+                <strong>จัดการสิทธิ์ผู้ประกาศ</strong>
+              </span>
+              <span id="roster-capacity" class="pill">–</span>
+            </summary>
+            <p class="note">แสดงเป็นป้ายเรียกเท่านั้น ระบบไม่เก็บและไม่แสดงอีเมลหรือชื่อจริงของผู้ประกาศ</p>
+            <ul id="roster-list" class="roster-list"></ul>
+            <p id="roster-empty" class="empty-state hidden">ยังไม่มีผู้ประกาศในระบบ</p>
+            <div class="inline-form">
+              <input id="revoke-callsign" maxlength="9" placeholder="CMD-XXXXX" autocomplete="off" />
+              <button id="revoke-button" class="button danger-outline" type="button">ถอดถอน</button>
+              <button id="reinvite-button" class="button secondary" type="button">ออกรหัสเชิญทดแทน</button>
             </div>
-            <span id="roster-capacity" class="pill">–</span>
-          </div>
-          <p class="note">แสดงเป็นป้ายเรียกเท่านั้น ระบบไม่เก็บและไม่แสดงอีเมลหรือชื่อจริงของผู้ประกาศ</p>
-          <ul id="roster-list" class="roster-list"></ul>
-          <div class="inline-form">
-            <input id="revoke-callsign" maxlength="9" placeholder="CMD-XXXXX" />
-            <button id="revoke-button" class="button danger-outline" type="button">ถอดถอน</button>
-            <button id="reinvite-button" class="button secondary" type="button">ออกรหัสเชิญทดแทน</button>
-          </div>
-          <p class="note">การถอดถอนผู้อื่นต้องได้รับการอนุมัติจากผู้ประกาศ 2 คนที่ต่างกัน ถอดถอนตัวเองทำได้ทันที</p>
+            <p class="note">การถอดถอนผู้อื่นต้องได้รับการอนุมัติจากผู้ประกาศ 2 คนที่ต่างกัน ถอดถอนตัวเองทำได้ทันที</p>
+          </details>
         </section>
         </div>
       </div>
     </main>
 
+    <div id="install-banner" class="install-banner hidden" role="status">
+      <span id="install-banner-text">ติดตั้งแอปบนหน้าจอหลัก เพื่อรับแจ้งเตือนตอนซ้อม</span>
+      <div class="install-banner-actions">
+        <button id="install-banner-action" class="button primary" type="button">ติดตั้ง</button>
+        <button id="install-banner-dismiss" class="button ghost" type="button">ไว้ก่อน</button>
+      </div>
+    </div>
     <div id="update-banner" class="update-banner hidden" role="status">
       <span>มีระบบเวอร์ชันใหม่ จะอัปเดตให้อัตโนมัติเมื่อการฝึกซ้อมสิ้นสุด</span>
       <button id="update-now" class="button ghost" type="button">อัปเดตเดี๋ยวนี้</button>
     </div>
     <dialog id="install-guide" class="guide-dialog">
       <div class="guide-head">
-        <h2>คู่มือติดตั้งแอป</h2>
+        <h2>ติดตั้งแอปบนมือถือ</h2>
         <button id="guide-close" class="button ghost" type="button">ปิด</button>
       </div>
+      <p class="guide-lead">ทำตามเครื่องของคุณให้ครบ แล้วเปิดจากไอคอนบนหน้าจอหลัก — อย่าเปิดค้างในเบราว์เซอร์</p>
       <div class="guide-tabs" role="tablist" aria-label="เลือกระบบปฏิบัติการ">
         <button id="guide-tab-ios" class="guide-tab is-active" type="button" role="tab">iPhone / iPad</button>
         <button id="guide-tab-android" class="guide-tab" type="button" role="tab">Android</button>
       </div>
       <ol id="guide-ios" class="guide-steps">
-        <li>เปิดเว็บนี้ด้วยแอป <strong>Safari</strong> (บน iPhone ต้องใช้ Safari จึงจะติดตั้งได้)</li>
-        <li>กดปุ่ม <strong>แชร์</strong> (รูปสี่เหลี่ยมมีลูกศรชี้ขึ้น) ที่แถบล่างของจอ</li>
-        <li>เลื่อนลงไปเลือก <strong>"เพิ่มลงหน้าจอโฮม"</strong></li>
+        <li><strong>เปิดด้วย Safari เท่านั้น</strong> — Chrome หรือ LINE บน iPhone ติดตั้งแล้วรับแจ้งเตือนไม่ได้</li>
+        <li>กดปุ่ม <strong>แชร์</strong> (สี่เหลี่ยมมีลูกศรชี้ขึ้น) ที่แถบล่างของจอ</li>
+        <li>เลื่อนลงแล้วเลือก <strong>เพิ่มลงหน้าจอโฮม</strong></li>
         <li>กด <strong>เพิ่ม</strong> ที่มุมขวาบน</li>
-        <li>เปิดแอปจากไอคอนใหม่บนหน้าจอโฮม แล้วกด <strong>"เปิดการแจ้งเตือนเครื่องนี้"</strong> และกดอนุญาตเมื่อระบบถาม</li>
+        <li>ออกจาก Safari แล้ว<strong>เปิดจากไอคอนใหม่</strong>บนหน้าจอโฮม</li>
+        <li>ในแอปที่ติดตั้งแล้ว กด <strong>เปิดการแจ้งเตือนเครื่องนี้</strong> แล้วกดอนุญาต</li>
       </ol>
       <ol id="guide-android" class="guide-steps hidden">
-        <li>เปิดเว็บนี้ด้วยแอป <strong>Chrome</strong></li>
-        <li>กดเมนู <strong>⋮</strong> ที่มุมขวาบนของจอ</li>
-        <li>เลือก <strong>"เพิ่มลงในหน้าจอหลัก"</strong> (Add to Home screen)</li>
+        <li><strong>เปิดด้วย Chrome</strong></li>
+        <li>ถ้ามีแถบ “ติดตั้งแอป” ให้กดติดตั้งเลย</li>
+        <li>หรือกดเมนู <strong>⋮</strong> มุมขวาบน แล้วเลือก <strong>เพิ่มลงในหน้าจอหลัก</strong></li>
         <li>กด <strong>ติดตั้ง</strong> หรือ <strong>เพิ่ม</strong> เพื่อยืนยัน</li>
-        <li>เปิดแอปจากไอคอนใหม่บนหน้าจอหลัก แล้วกด <strong>"เปิดการแจ้งเตือนเครื่องนี้"</strong> และกดอนุญาตเมื่อระบบถาม</li>
+        <li><strong>เปิดจากไอคอนใหม่</strong>บนหน้าจอหลัก</li>
+        <li>กด <strong>เปิดการแจ้งเตือนเครื่องนี้</strong> แล้วกดอนุญาตเมื่อระบบถาม</li>
       </ol>
-      <p class="note">ถ้าเปิดผ่านเบราว์เซอร์ตรง ๆ โดยไม่ติดตั้งเป็นแอป iPhone/iPad จะไม่รับการแจ้งเตือนเมื่อปิดหน้าจอ</p>
+      <p class="note">ถ้าเปิดผ่านเบราว์เซอร์โดยไม่ติดตั้งเป็นแอป เครื่อง iPhone/iPad จะไม่รับการแจ้งเตือนเมื่อปิดหน้าจอ</p>
     </dialog>
     <div id="toast" class="toast hidden" role="status"></div>
   </body>
