@@ -25,8 +25,8 @@
       </div>
       <div class="account">
         <div id="view-switch" class="view-switch hidden" role="tablist" aria-label="สลับมุมมอง">
-          <button id="view-user" class="view-tab" type="button" role="tab">มุมมองผู้ใช้</button>
-          <button id="view-admin" class="view-tab is-active" type="button" role="tab">มุมมองผู้ดูแล</button>
+          <button id="view-user" class="view-tab" type="button" role="tab">โหมดรับแจ้ง</button>
+          <button id="view-admin" class="view-tab is-active" type="button" role="tab">โหมดผู้ประกาศ</button>
         </div>
         <span id="account-label">ยังไม่ได้เข้าสู่ระบบ</span>
         <button id="logout-button" class="button ghost hidden" type="button">ออกจากระบบ</button>
@@ -37,7 +37,7 @@
       <section id="login-panel" class="card login-card">
         <span class="eyebrow">บัญชีโรงเรียนเท่านั้น</span>
         <h2>เข้าสู่ระบบเพื่อรับการแจ้งเตือน</h2>
-        <p>รองรับเฉพาะบัญชี <strong>@hatyaiwit.ac.th</strong> ระบบไม่เก็บรหัสผ่าน Google</p>
+        <p>รองรับเฉพาะบัญชี <strong id="allowed-domain">@hatyaiwit.ac.th</strong> ระบบไม่เก็บรหัสผ่าน Google</p>
         <a class="button primary wide" href="/auth/login">เข้าสู่ระบบด้วย Google Workspace</a>
       </section>
 
@@ -70,10 +70,11 @@
               <li id="check-notification"><span class="status-dot"></span><span>อนุญาตการแจ้งเตือน</span></li>
               <li id="check-subscription"><span class="status-dot"></span><span>ลงทะเบียนอุปกรณ์แล้ว</span></li>
             </ul>
+            <button id="open-guide" class="button secondary wide" type="button">คู่มือติดตั้งทีละขั้น (iPhone/Android)</button>
             <label for="device-zone">พื้นที่ประจำของอุปกรณ์</label>
             <select id="device-zone"></select>
             <button id="enable-push" class="button primary wide" type="button">เปิดการแจ้งเตือนเครื่องนี้</button>
-            <p id="ios-help" class="note hidden">สำหรับ iPhone/iPad ให้เพิ่มเว็บไปยังหน้าจอโฮมก่อน แล้วเปิดจากไอคอนที่ติดตั้ง</p>
+            <p id="ios-help" class="note hidden">iPhone/iPad ต้อง "เพิ่มลงหน้าจอโฮม" ก่อน แล้วเปิดจากไอคอนที่ติดตั้ง จึงจะรับการแจ้งเตือนได้</p>
           </section>
 
           <section class="card">
@@ -202,6 +203,31 @@
       <span>มีระบบเวอร์ชันใหม่ จะอัปเดตให้อัตโนมัติเมื่อการฝึกซ้อมสิ้นสุด</span>
       <button id="update-now" class="button ghost" type="button">อัปเดตเดี๋ยวนี้</button>
     </div>
+    <dialog id="install-guide" class="guide-dialog">
+      <div class="guide-head">
+        <h2>คู่มือติดตั้งแอป</h2>
+        <button id="guide-close" class="button ghost" type="button">ปิด</button>
+      </div>
+      <div class="guide-tabs" role="tablist" aria-label="เลือกระบบปฏิบัติการ">
+        <button id="guide-tab-ios" class="guide-tab is-active" type="button" role="tab">iPhone / iPad</button>
+        <button id="guide-tab-android" class="guide-tab" type="button" role="tab">Android</button>
+      </div>
+      <ol id="guide-ios" class="guide-steps">
+        <li>เปิดเว็บนี้ด้วยแอป <strong>Safari</strong> (บน iPhone ต้องใช้ Safari จึงจะติดตั้งได้)</li>
+        <li>กดปุ่ม <strong>แชร์</strong> (รูปสี่เหลี่ยมมีลูกศรชี้ขึ้น) ที่แถบล่างของจอ</li>
+        <li>เลื่อนลงไปเลือก <strong>"เพิ่มลงหน้าจอโฮม"</strong></li>
+        <li>กด <strong>เพิ่ม</strong> ที่มุมขวาบน</li>
+        <li>เปิดแอปจากไอคอนใหม่บนหน้าจอโฮม แล้วกด <strong>"เปิดการแจ้งเตือนเครื่องนี้"</strong> และกดอนุญาตเมื่อระบบถาม</li>
+      </ol>
+      <ol id="guide-android" class="guide-steps hidden">
+        <li>เปิดเว็บนี้ด้วยแอป <strong>Chrome</strong></li>
+        <li>กดเมนู <strong>⋮</strong> ที่มุมขวาบนของจอ</li>
+        <li>เลือก <strong>"เพิ่มลงในหน้าจอหลัก"</strong> (Add to Home screen)</li>
+        <li>กด <strong>ติดตั้ง</strong> หรือ <strong>เพิ่ม</strong> เพื่อยืนยัน</li>
+        <li>เปิดแอปจากไอคอนใหม่บนหน้าจอหลัก แล้วกด <strong>"เปิดการแจ้งเตือนเครื่องนี้"</strong> และกดอนุญาตเมื่อระบบถาม</li>
+      </ol>
+      <p class="note">ถ้าเปิดผ่านเบราว์เซอร์ตรง ๆ โดยไม่ติดตั้งเป็นแอป iPhone/iPad จะไม่รับการแจ้งเตือนเมื่อปิดหน้าจอ</p>
+    </dialog>
     <div id="toast" class="toast hidden" role="status"></div>
   </body>
 </html>

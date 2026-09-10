@@ -104,7 +104,7 @@ async function enablePush() {
   }
   if (isIos() && !isStandalone()) {
     $("#ios-help").classList.remove("hidden");
-    toast("กรุณาเพิ่มเว็บไปยังหน้าจอโฮม แล้วเปิดจากไอคอนที่ติดตั้ง");
+    openInstallGuide();
     return;
   }
   const button = $("#enable-push");
@@ -504,6 +504,28 @@ async function checkVersion() {
    ผู้ใช้ทั่วไปเห็นเฉพาะสิ่งที่ต้องใช้ตอนเกิดเหตุ
    ผู้ดูแลสลับไปดูมุมมองผู้ใช้ได้ เพื่อใช้ตอนอบรมและตอนสาธิต        */
 
+/* ── คู่มือติดตั้งในแอป ─────────────────────────────────────── */
+function setGuideTab(platform) {
+  const ios = platform !== "android";
+  $("#guide-ios").classList.toggle("hidden", !ios);
+  $("#guide-android").classList.toggle("hidden", ios);
+  $("#guide-tab-ios").classList.toggle("is-active", ios);
+  $("#guide-tab-android").classList.toggle("is-active", !ios);
+}
+
+function openInstallGuide() {
+  setGuideTab(platformName());
+  const dialog = $("#install-guide");
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+}
+
+function closeInstallGuide() {
+  const dialog = $("#install-guide");
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
 function setView(view) {
   state.view = view;
   const admin = view === "admin";
@@ -531,6 +553,9 @@ async function init() {
   try {
     state.config = await api("/api/config");
     $("#school-name").textContent = state.config.schoolName;
+    // แสดงโดเมนที่อนุญาตจากค่าจริงของเซิร์ฟเวอร์ ไม่ฝังไว้ในหน้าเว็บ
+    // ทำให้สลับโดเมนทดลองกับโดเมนใช้งานจริงได้โดยแก้แค่ wrangler.jsonc
+    $("#allowed-domain").textContent = "@" + state.config.googleDomain;
     fillZones();
   } catch (error) {
     toast(error.message);
@@ -590,6 +615,10 @@ $("#refresh-dashboard").addEventListener("click", () => {
 });
 $("#revoke-button").addEventListener("click", revokeCommander);
 $("#reinvite-button").addEventListener("click", reinviteCommander);
+$("#open-guide").addEventListener("click", openInstallGuide);
+$("#guide-close").addEventListener("click", closeInstallGuide);
+$("#guide-tab-ios").addEventListener("click", () => setGuideTab("ios"));
+$("#guide-tab-android").addEventListener("click", () => setGuideTab("android"));
 
 const holdButton = $("#activate-drill");
 holdButton.addEventListener("pointerdown", beginHold);

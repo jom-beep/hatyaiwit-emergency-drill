@@ -14,12 +14,12 @@
   "vars": {
     "ALLOWED_GOOGLE_DOMAIN": "khanchai.ac.th",
     "DEPLOYMENT_MODE": "DRILL",
-    "SCHOOL_NAME": "โรงเรียนหาดใหญ่วิทยาลัย(TEST)",
+    "SCHOOL_NAME": "โรงเรียนหาดใหญ่วิทยาลัย (ระบบทดลอง)",
     "PUBLIC_ORIGIN": "https://hatyaiwit-emergency-drill.kokait.workers.dev",
     "COOKIE_SECURE": "true",
     "LOG_RETENTION_DAYS": "90",
     "SUBSCRIPTION_STALE_DAYS": "180",
-    "APP_VERSION": "0.4.1",
+    "APP_VERSION": "0.5.0",
     "ESCALATION_STEP_SECONDS": "30"
   },
   "triggers": {

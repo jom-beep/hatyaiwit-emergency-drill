@@ -1,4 +1,4 @@
-const STATIC_CACHE = "hyw-drill-static-v1";
+const STATIC_CACHE = "hyw-drill-static-v2";
 const STATIC_ASSETS = ["/", "/styles.css", "/app.js", "/icon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

@@ -1,8 +1,0 @@
-@@ -418,6 +463,7 @@
-     // แสดงโดเมนที่อนุญาตจากค่าจริงของเซิร์ฟเวอร์ ไม่ฝังไว้ในหน้าเว็บ
-     // ทำให้สลับโดเมนทดลองกับโดเมนใช้งานจริงได้โดยแก้แค่ wrangler.jsonc
-     $("#allowed-domain").textContent = "@" + state.config.googleDomain;
-+    state.version = state.config.version;
-     fillZones();
-   } catch (error) {
-     toast(error.message);

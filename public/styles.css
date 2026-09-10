@@ -71,6 +71,16 @@ textarea { resize: vertical; }
 .incident-actions { display: flex; flex-wrap: wrap; gap: 10px; min-width: 280px; justify-content: flex-end; }
 .pill { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: #eef1f4; font-size: 11px; font-weight: 800; letter-spacing: .04em; }
 .active .pill { background: rgba(255,255,255,.18); }
+.incident-panel .pill { font-size: 13px; padding: 7px 14px; }
+.incident-panel.idle .pill { color: var(--muted); }
+.incident-panel.active .pill { color: #fff; }
+.incident-panel.active .pill::before {
+  content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  background: #ffd7dc; margin-right: 8px; animation: status-pulse 1.2s ease-in-out infinite;
+}
+.incident-panel.resolved .pill { color: #0d5c3a; background: #cdebd9; }
+@keyframes status-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+.incident-panel h2 { font-size: 26px; }
 
 .checklist { padding: 0; margin: 16px 0; list-style: none; }
 .checklist li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
@@ -96,12 +106,14 @@ textarea { resize: vertical; }
 
 @media (max-width: 760px) {
   .topbar { align-items: flex-start; padding: 14px 16px; }
-  .account { flex-direction: column; align-items: flex-end; }
+  .account { width: 100%; flex-direction: column; align-items: stretch; }
+  .button { min-height: 52px; }
   .shell { width: min(100% - 20px, 680px); margin-top: 12px; }
   .two-columns, .commander-fields { grid-template-columns: 1fr; }
   .incident-panel { align-items: flex-start; flex-direction: column; }
   .incident-actions { width: 100%; min-width: 0; justify-content: stretch; }
-  .incident-actions .button { flex: 1; }
+  .incident-actions .button { flex: 1; min-height: 64px; font-size: 17px; }
+  .incident-panel h2 { font-size: 24px; }
   .metrics { grid-template-columns: 1fr 1fr; }
   .card { padding: 18px; border-radius: 15px; }
   .brand h1 { font-size: 16px; }
@@ -118,7 +130,11 @@ textarea { resize: vertical; }
 .roster-list .you { color: var(--blue); font-weight: 800; }
 .inline-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .inline-form input { flex: 1 1 200px; }
-@media (max-width: 720px) { .two-columns { grid-template-columns: 1fr; } .view-switch { display: none; } }
+@media (max-width: 720px) {
+  .two-columns { grid-template-columns: 1fr; }
+  .view-switch { width: 100%; }
+  .view-tab { flex: 1; min-height: 44px; padding: 10px 8px; font-size: 14px; }
+}
 
 .update-banner { position: sticky; bottom: 0; z-index: 30; display: flex; align-items: center;
   justify-content: space-between; gap: 12px; flex-wrap: wrap;
@@ -130,3 +146,13 @@ textarea { resize: vertical; }
   padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .report-list .info { font-size: 14px; }
 .report-list .meta { display: block; color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+/* ── v0.5.0 : คู่มือติดตั้งในแอป ── */
+.guide-dialog { border: 0; border-radius: 18px; padding: 22px; width: min(560px, calc(100vw - 32px)); box-shadow: var(--shadow); }
+.guide-dialog::backdrop { background: rgba(24, 32, 44, .45); }
+.guide-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.guide-head h2 { margin: 0; }
+.guide-tabs { display: flex; gap: 8px; margin: 14px 0; }
+.guide-tab { flex: 1; min-height: 46px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--muted); font-weight: 700; }
+.guide-tab.is-active { background: var(--red); border-color: var(--red); color: #fff; }
+.guide-steps { margin: 0; padding-left: 22px; display: grid; gap: 10px; line-height: 1.55; }
