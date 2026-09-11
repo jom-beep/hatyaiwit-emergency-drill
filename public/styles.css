@@ -72,7 +72,8 @@ textarea { resize: vertical; }
 .incident-copy { min-width: 0; flex: 1; }
 .incident-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .incident-response { display: flex; flex-direction: column; gap: 12px; min-width: min(360px, 100%); flex: 0 1 380px; }
-.incident-actions { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; justify-content: flex-end; }
+.incident-actions { display: grid; grid-template-columns: 1fr; gap: 10px; min-width: 0; }
+.incident-actions .button { width: 100%; min-height: 56px; font-size: 17px; }
 .ack-main { min-width: 180px; min-height: 56px; font-size: 18px; }
 .pill { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: #eef1f4; font-size: 11px; font-weight: 800; letter-spacing: .04em; }
 .active .pill { background: rgba(255,255,255,.18); }
@@ -119,7 +120,7 @@ textarea { resize: vertical; }
   .two-columns, .commander-fields { grid-template-columns: 1fr; }
   .incident-panel { align-items: flex-start; flex-direction: column; }
   .incident-response, .incident-actions { width: 100%; min-width: 0; }
-  .incident-actions { justify-content: stretch; }
+  .incident-actions { grid-template-columns: 1fr; }
   .incident-actions .button { flex: 1; min-height: 64px; font-size: 17px; }
   .incident-panel h2 { font-size: 24px; }
   .metrics { grid-template-columns: 1fr 1fr; }
@@ -218,7 +219,8 @@ body.drill-live .user-secondary { display: none; }
 body.drill-live .install-banner { display: none !important; }
 body.drill-live .incident-panel.active { padding: 28px 24px; }
 body.drill-live .incident-panel h2 { font-size: 30px; }
-body.drill-live .ack-main { min-height: 72px; font-size: 20px; }
+body.drill-live .ack-main,
+body.drill-live .incident-actions .button { min-height: 64px; font-size: 18px; }
 
 @media (max-width: 760px) {
   .ack-main { width: 100%; min-height: 72px; }
@@ -289,7 +291,8 @@ body.demo-mode { padding-bottom: 0; }
   background: #fff; color: var(--ink); border-radius: 14px; padding: 14px 16px; text-align: left;
   border: 1px solid rgba(24, 32, 44, .08);
 }
-.recipient-guidance h3 { margin: 0 0 8px; font-size: 15px; }
+.recipient-guidance .eyebrow { color: var(--red); }
+.recipient-guidance h3 { margin: 2px 0 8px; font-size: 16px; }
 .recipient-guidance ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
 .recipient-guidance li { color: var(--ink); font-size: 14px; line-height: 1.45; font-weight: 600; }
 .recipient-guidance-stamp {
