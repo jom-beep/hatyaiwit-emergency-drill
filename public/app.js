@@ -331,18 +331,20 @@ function isLockdownLike(type) {
   return type === "LOCKDOWN";
 }
 
-function readSilentMode() {
+function readSilentMode(incidentType) {
   try {
-    return sessionStorage.getItem(SILENT_MODE_STORAGE_KEY) === "1";
+    const raw = sessionStorage.getItem(SILENT_MODE_STORAGE_KEY);
+    if (raw === "1") return true;
+    if (raw === "0") return false;
+    return isLockdownLike(incidentType);
   } catch {
-    return false;
+    return isLockdownLike(incidentType);
   }
 }
 
 function writeSilentMode(enabled) {
   try {
-    if (enabled) sessionStorage.setItem(SILENT_MODE_STORAGE_KEY, "1");
-    else sessionStorage.removeItem(SILENT_MODE_STORAGE_KEY);
+    sessionStorage.setItem(SILENT_MODE_STORAGE_KEY, enabled ? "1" : "0");
   } catch {
     // Private mode may block sessionStorage.
   }
@@ -357,7 +359,7 @@ function instructionRevisionKey(incident) {
 
 function playCommandCue() {
   if (!state.demoApi) return;
-  if (isLockdownLike(state.incident?.type) && readSilentMode()) return;
+  if (isLockdownLike(state.incident?.type) && readSilentMode(state.incident?.type)) return;
   try {
     navigator.vibrate?.([180, 80, 180]);
   } catch {
@@ -459,7 +461,7 @@ function renderSilentLockdown(incident) {
   if (!box || !toggle) return;
   const show = Boolean(state.demoApi && incidentIsLive(incident) && isLockdownLike(incident?.type));
   box.classList.toggle("hidden", !show);
-  const on = readSilentMode();
+  const on = readSilentMode(incident?.type);
   if (toggle.checked !== on) toggle.checked = on;
   box.classList.toggle("is-on", show && on);
 }

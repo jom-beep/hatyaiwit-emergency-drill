@@ -268,11 +268,13 @@ describe("lockdown silent mode preference", () => {
       removeItem: (key) => mem.delete(key),
     };
     expect(readSilentMode(storage)).toBe(false);
+    expect(readSilentMode(storage, "LOCKDOWN")).toBe(true);
     writeSilentMode(storage, true);
     expect(storage.getItem(SILENT_MODE_STORAGE_KEY)).toBe("1");
-    expect(readSilentMode(storage)).toBe(true);
+    expect(readSilentMode(storage, "LOCKDOWN")).toBe(true);
     writeSilentMode(storage, false);
-    expect(readSilentMode(storage)).toBe(false);
+    expect(storage.getItem(SILENT_MODE_STORAGE_KEY)).toBe("0");
+    expect(readSilentMode(storage, "LOCKDOWN")).toBe(false);
   });
 });
 

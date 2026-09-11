@@ -60,14 +60,16 @@ export function isLockdownLike(type) {
   return type === "LOCKDOWN";
 }
 
-export function readSilentMode(storage) {
-  return storage?.getItem?.(SILENT_MODE_STORAGE_KEY) === "1";
+export function readSilentMode(storage, incidentType) {
+  const raw = storage?.getItem?.(SILENT_MODE_STORAGE_KEY);
+  if (raw === "1") return true;
+  if (raw === "0") return false;
+  return isLockdownLike(incidentType);
 }
 
 export function writeSilentMode(storage, enabled) {
-  if (!storage) return Boolean(enabled);
-  if (enabled) storage.setItem(SILENT_MODE_STORAGE_KEY, "1");
-  else storage.removeItem(SILENT_MODE_STORAGE_KEY);
+  if (!storage?.setItem) return Boolean(enabled);
+  storage.setItem(SILENT_MODE_STORAGE_KEY, enabled ? "1" : "0");
   return Boolean(enabled);
 }
 

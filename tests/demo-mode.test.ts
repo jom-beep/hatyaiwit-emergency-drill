@@ -40,11 +40,13 @@ describe("demo mode must not weaken production auth", () => {
     expect(app).toContain("/api/incidents/update");
     expect(app).toContain("pushInstructionUpdate");
     expect(app).toContain("hyw-demo-silent-lockdown");
+    expect(app).toContain("isLockdownLike(incidentType)");
     expect(app).toContain("playCommandCue");
     expect(app).toContain("ยุติแล้ว / กลับสู่ปกติ");
     expect(app).toContain("คุณรับทราบครั้งแรกเมื่อ");
     expect(html).toContain("ส่งคำสั่งใหม่ (เพิ่มเวอร์ชัน)");
     expect(html).toContain("โหมดเงียบ — ปิดเสียงและสั่นของแอปนี้");
+    expect(html).toContain("ค่าเริ่มต้นตอนล็อกดาวน์คือเปิดโหมดเงียบ");
     expect(html).toContain("ยุติแล้ว");
     expect(html).toContain("กลับสู่ปกติ");
     expect(html).toContain("ประวัติคำสั่งก่อนหน้า");
