@@ -308,9 +308,9 @@ body.demo-mode { padding-bottom: 0; }
   background: #fff; color: var(--ink); border-radius: 14px; padding: 14px 16px; text-align: left;
   border: 1px solid rgba(24, 32, 44, .08);
 }
-.command-updates .eyebrow { color: var(--red); }
+.command-updates .eyebrow { display: block; color: var(--red); }
 .command-update-badge {
-  display: inline-flex; margin: 4px 0 8px; padding: 4px 10px; border-radius: 999px;
+  display: inline-flex; margin: 6px 0 8px; padding: 4px 10px; border-radius: 999px;
   background: #fdeaec; color: var(--red); font-size: 12px; font-weight: 800;
 }
 .command-update-latest { font-size: 16px; font-weight: 750; line-height: 1.45; }
