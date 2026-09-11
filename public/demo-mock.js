@@ -40,6 +40,56 @@ export const DRILL_TEMPLATES = [
   },
 ];
 
+/** Explicit recipient status. AWAY is a response — not the same as silent/non-responder. */
+export const RECIPIENT_STATUSES = ["ACK", "SAFE", "NEED_HELP", "AWAY"];
+
+export const RECIPIENT_GUIDANCE = {
+  LOCKDOWN: {
+    title: "ขณะล็อกดาวน์ / ปิดพื้นที่",
+    steps: [
+      "เงียบ — ห้ามพูดคุยหรือโทรออกนอกจากจำเป็น",
+      "ปิดไฟ และอยู่ห่างจากหน้าต่างกับประตู",
+      "ห้ามเปิดประตูให้ใคร จนกว่าศูนย์ควบคุมจะประกาศยุติ",
+      "นั่งหรือหมอบในจุดกำบังภายในห้อง",
+    ],
+  },
+  EVACUATE: {
+    title: "ขณะอพยพ",
+    steps: [
+      "เดินตามเส้นทางหนีไฟไปยังจุดรวมพล",
+      "ห้ามใช้ลิฟต์",
+      "อย่ากลับเข้าอาคารจนกว่าจะได้รับคำสั่ง",
+      "รวมตัวแล้วรอตรวจนับจากครูประจำชั้น",
+    ],
+  },
+  SHELTER: {
+    title: "ขณะอยู่ในพื้นที่ปลอดภัย",
+    steps: [
+      "หมอบ-กำบัง-ยึด ใต้โต๊ะหรือโครงสร้างแข็ง",
+      "อยู่ห่างจากกระจกและของที่อาจร่วง",
+      "อย่าวิ่งออกนอกห้องจนกว่าแรงสั่นหรือภัยจะผ่าน",
+      "รอคำสั่งอพยพหรือยุติจากศูนย์ควบคุม",
+    ],
+  },
+  MEDICAL: {
+    title: "ขณะมีเหตุการแพทย์",
+    steps: [
+      "อยู่กับที่ถ้าไม่ใช่ผู้ช่วยเหลือ",
+      "เปิดทางให้เจ้าหน้าที่และความช่วยเหลือ",
+      "อย่าถ่ายภาพหรือรวมตัวดูเหตุ",
+      "รอคำสั่งจากศูนย์ควบคุม",
+    ],
+  },
+  INFORMATION: {
+    title: "ประกาศจากศูนย์ควบคุม",
+    steps: [
+      "อ่านประกาศให้ครบแล้วปฏิบัติตาม",
+      "อย่าส่งต่อข่าวที่ไม่ใช่จากโรงเรียน",
+      "รอการอัปเดตจากศูนย์ควบคุม",
+    ],
+  },
+};
+
 export const DEMO_ZONES = [
   { id: "ALL", name: "ทั้งโรงเรียน" },
   { id: "BUILDING_1", name: "อาคาร 1" },
@@ -89,7 +139,7 @@ export function seedPeople() {
     { id: "p-t02", name: "ครูมาลี รักเรียน", role: "ครู", zone: "BUILDING_1", room: "ม.4/2 ห้อง 102", initial: "SAFE" },
     { id: "p-s01", name: "นายธนกร ศรีสุข", role: "นักเรียน", zone: "BUILDING_1", room: "ม.4/1", initial: "SAFE" },
     { id: "p-s02", name: "นางสาวปภาวดี ทองแท้", role: "นักเรียน", zone: "BUILDING_1", room: "ม.4/1", initial: "ACK" },
-    { id: "p-s03", name: "นายกิตติพงศ์ มีชัย", role: "นักเรียน", zone: "BUILDING_1", room: "ม.4/2", initial: null },
+    { id: "p-s03", name: "นายกิตติพงศ์ มีชัย", role: "นักเรียน", zone: "BUILDING_1", room: "ม.4/2", initial: "AWAY" },
     { id: "p-s04", name: "นางสาวอรุณี สุขใจ", role: "นักเรียน", zone: "BUILDING_1", room: "ม.4/2", initial: "SAFE" },
     { id: "p-s05", name: "นายพีรพัฒน์ แก้วมณี", role: "นักเรียน", zone: "BUILDING_1", room: "ม.5/1 ห้อง 103", initial: "NEED_HELP" },
     { id: "p-s06", name: "นางสาวชลธิชา บุญส่ง", role: "นักเรียน", zone: "BUILDING_1", room: "ม.5/1", initial: "SAFE" },
@@ -165,6 +215,7 @@ export function summarizeRoster(people, acknowledgements) {
   const safe = acknowledgements.filter((row) => row.response === "SAFE").length;
   const needHelp = acknowledgements.filter((row) => row.response === "NEED_HELP").length;
   const ackOnly = acknowledgements.filter((row) => row.response === "ACK").length;
+  const away = acknowledgements.filter((row) => row.response === "AWAY").length;
   const nonResponders = people.filter((person) => !byPerson.has(person.id));
   const zoneOrder = DEMO_ZONES.filter((zone) => zone.id !== "ALL").map((zone) => zone.id);
   const nonRespondersByZone = zoneOrder
@@ -192,6 +243,7 @@ export function summarizeRoster(people, acknowledgements) {
     safe,
     needHelp,
     ackOnly,
+    away,
     nonResponders,
     nonRespondersByZone,
   };
@@ -215,6 +267,7 @@ function afterActionSummary(incident, roster, resolvedAt) {
     safe: roster.safe,
     needHelp: roster.needHelp,
     ackOnly: roster.ackOnly,
+    away: roster.away,
     nonRespondersByZone: roster.nonRespondersByZone,
   };
 }
@@ -301,6 +354,7 @@ export function createDemoStore(options = {}) {
       { response: "ACK", count: summary.ackOnly },
       { response: "SAFE", count: summary.safe },
       { response: "NEED_HELP", count: summary.needHelp },
+      { response: "AWAY", count: summary.away },
     ].filter((row) => row.count > 0);
     const sent = incident ? Math.max(0, people.length - 1) : 0;
     return {
@@ -327,6 +381,7 @@ export function createDemoStore(options = {}) {
         zones: clone(DEMO_ZONES),
         demo: true,
         templates: clone(DRILL_TEMPLATES),
+        recipientGuidance: clone(RECIPIENT_GUIDANCE),
       };
     },
     getMe() {
@@ -347,6 +402,7 @@ export function createDemoStore(options = {}) {
         personId,
         ackResponse: ack?.response ?? null,
         ackedIncidentId: ack?.incidentId ?? null,
+        ackAt: ack?.createdAt ?? null,
       };
     },
     setIdentity(id) {
@@ -368,7 +424,7 @@ export function createDemoStore(options = {}) {
       const identity = currentIdentity();
       const personId = identity.personId;
       if (!personId) throw new DemoError(400, "สลับเป็นครูผู้รับแจ้งก่อน จึงจะกดรับทราบในโหมดสาธิตได้");
-      if (!["ACK", "SAFE", "NEED_HELP"].includes(response)) {
+      if (!RECIPIENT_STATUSES.includes(response)) {
         throw new DemoError(400, "ข้อมูลตอบรับไม่ถูกต้อง");
       }
       const existing = acknowledgements.find((row) => row.incidentId === incidentId && row.personId === personId);
@@ -382,7 +438,7 @@ export function createDemoStore(options = {}) {
       if (existing) Object.assign(existing, row);
       else acknowledgements.push(row);
       emit();
-      return { ok: true, response };
+      return { ok: true, response, createdAt: row.createdAt };
     },
     createActionToken() {
       const identity = currentIdentity();

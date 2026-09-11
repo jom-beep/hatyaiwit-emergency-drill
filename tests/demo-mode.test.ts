@@ -29,11 +29,20 @@ describe("demo mode must not weaken production auth", () => {
     expect(app).toContain("if (state.demoApi) return state.demoApi.handle");
   });
 
+  it("keeps recipient status switching unlocked in the demo shell", () => {
+    expect(app).toContain('acknowledge("AWAY")');
+    expect(app).toContain("กดเปลี่ยนได้ตลอดจนกว่าจะยุติ");
+    expect(app).toContain("renderRecipientGuidance");
+    expect(app).not.toMatch(/safeButton\.disabled = true/);
+  });
+
   it("keeps the five mock walkthrough surfaces in the PWA shell", () => {
     expect(html).toContain("ผู้ที่ยังไม่กดรับทราบ");
     expect(html).toContain("After-action");
     expect(html).toContain("ปลอดภัย");
     expect(html).toContain("ต้องการช่วยเหลือ");
+    expect(html).toContain("ไม่อยู่ในพื้นที่");
+    expect(html).toContain("สิ่งที่ควรทำตอนนี้");
     expect(html).toContain("นี่คือการฝึกซ้อม · DRILL");
     expect(html).toContain('href="/demo"');
     expect(html).toContain("ดูโหมดสาธิต — ไม่ต้องเข้าสู่ระบบ");

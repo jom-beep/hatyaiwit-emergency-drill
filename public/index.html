@@ -78,10 +78,26 @@
             <small id="incident-meta"></small>
             <p id="ack-status" class="ack-status hidden"></p>
           </div>
-          <div id="incident-actions" class="incident-actions hidden">
-            <button id="ack-button" class="button success ack-main" type="button">รับทราบ</button>
-            <button id="safe-button" class="button success demo-only hidden" type="button">ปลอดภัย</button>
-            <button id="help-button" class="button danger-outline" type="button">ต้องการความช่วยเหลือ</button>
+          <div id="incident-response" class="incident-response hidden">
+            <div id="incident-actions" class="incident-actions">
+              <button id="ack-button" class="button success ack-main" type="button">รับทราบ</button>
+              <button id="safe-button" class="button success demo-only hidden" type="button">ปลอดภัย</button>
+              <button id="help-button" class="button danger-outline" type="button">ต้องการความช่วยเหลือ</button>
+              <button id="away-button" class="button away-status demo-only hidden" type="button">ไม่อยู่ในพื้นที่</button>
+            </div>
+            <aside id="recipient-guidance" class="recipient-guidance hidden">
+              <h3 id="recipient-guidance-title">สิ่งที่ควรทำตอนนี้</h3>
+              <ul id="recipient-guidance-list"></ul>
+              <p class="recipient-guidance-stamp">นี่คือการฝึกซ้อม · DRILL</p>
+            </aside>
+            <details id="recipient-later" class="recipient-later demo-only">
+              <summary>ของที่ยังไม่ทำในรอบนี้ (4–6)</summary>
+              <ul>
+                <li>คำสั่งเพิ่มจากศูนย์ควบคุมแบบมีเลขเวอร์ชัน</li>
+                <li>โหมดเงียบ (ปิดเสียง/สั่น) ตอนล็อกดาวน์</li>
+                <li>หน้าเคลียร์เหตุพร้อมเวลาที่กดรับทราบของตนเอง</li>
+              </ul>
+            </details>
           </div>
         </section>
 
@@ -222,6 +238,7 @@
           </div>
           <div id="demo-status-metrics" class="metrics demo-metrics demo-only">
             <div><strong id="metric-safe">–</strong><span>ปลอดภัย</span></div>
+            <div><strong id="metric-away">–</strong><span>ไม่อยู่ในพื้นที่</span></div>
             <div><strong id="metric-silent">–</strong><span>ยังไม่ตอบ</span></div>
             <div><strong id="metric-ack-rate">–</strong><span>อัตรารับทราบ</span></div>
           </div>
@@ -236,7 +253,7 @@
             </div>
             <span id="nonresponder-count" class="pill commander-pill">0</span>
           </div>
-          <p class="note">จัดกลุ่มตามอาคาร/พื้นที่ — คนเหล่านี้คือจุดที่ศูนย์ควบคุมต้องติดตามต่อ</p>
+          <p class="note">จัดกลุ่มตามอาคาร/พื้นที่ — คนที่ยังไม่กดรับทราบเลย ไม่รวมผู้ที่กด «ไม่อยู่ในพื้นที่»</p>
           <div id="nonresponder-zones" class="zone-groups"></div>
           <p id="nonresponder-empty" class="empty-state hidden">ทุกคนในรายชื่อจำลองกดรับทราบแล้ว</p>
         </section>
@@ -255,6 +272,7 @@
             <div><strong id="afteraction-responded">–</strong><span>ตอบแล้ว / ทั้งหมด</span></div>
             <div><strong id="afteraction-safe">–</strong><span>ปลอดภัย</span></div>
             <div><strong id="afteraction-help">–</strong><span>ต้องการช่วยเหลือ</span></div>
+            <div><strong id="afteraction-away">–</strong><span>ไม่อยู่ในพื้นที่</span></div>
           </div>
           <h3 class="subhead">รายชื่อที่ยังไม่ตอบ</h3>
           <div id="afteraction-silent" class="zone-groups"></div>

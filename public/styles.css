@@ -71,7 +71,8 @@ textarea { resize: vertical; }
 .incident-panel.active p, .incident-panel.active small { color: #fff; }
 .incident-copy { min-width: 0; flex: 1; }
 .incident-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.incident-actions { display: flex; flex-wrap: wrap; gap: 10px; min-width: 280px; justify-content: flex-end; }
+.incident-response { display: flex; flex-direction: column; gap: 12px; min-width: min(360px, 100%); flex: 0 1 380px; }
+.incident-actions { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; justify-content: flex-end; }
 .ack-main { min-width: 180px; min-height: 56px; font-size: 18px; }
 .pill { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: #eef1f4; font-size: 11px; font-weight: 800; letter-spacing: .04em; }
 .active .pill { background: rgba(255,255,255,.18); }
@@ -117,7 +118,8 @@ textarea { resize: vertical; }
   .shell { width: min(100% - 20px, 680px); margin-top: 12px; }
   .two-columns, .commander-fields { grid-template-columns: 1fr; }
   .incident-panel { align-items: flex-start; flex-direction: column; }
-  .incident-actions { width: 100%; min-width: 0; justify-content: stretch; }
+  .incident-response, .incident-actions { width: 100%; min-width: 0; }
+  .incident-actions { justify-content: stretch; }
   .incident-actions .button { flex: 1; min-height: 64px; font-size: 17px; }
   .incident-panel h2 { font-size: 24px; }
   .metrics { grid-template-columns: 1fr 1fr; }
@@ -268,7 +270,7 @@ body.demo-mode { padding-bottom: 0; }
 .template-card small { display: block; margin-top: 4px; color: var(--muted); font-weight: 600; font-size: 12px; }
 .template-card.is-active { border-color: var(--red); background: #fdeaec; }
 
-.demo-metrics { margin-top: 12px; grid-template-columns: repeat(3, 1fr); }
+.demo-metrics { margin-top: 12px; grid-template-columns: repeat(4, 1fr); }
 .zone-groups { display: grid; gap: 12px; margin-top: 12px; }
 .zone-group { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: #fff; }
 .zone-group h3 { margin: 0 0 8px; font-size: 15px; display: flex; justify-content: space-between; gap: 8px; }
@@ -279,6 +281,28 @@ body.demo-mode { padding-bottom: 0; }
 .afteraction-title { font-weight: 800; color: var(--ink); }
 #safe-button.is-active { box-shadow: inset 0 0 0 3px #0d5c3a; }
 #help-button.is-active { box-shadow: inset 0 0 0 3px var(--red); }
+#away-button.is-active { box-shadow: inset 0 0 0 3px #2457a6; }
+.button.away-status {
+  color: #1f3b73; background: #eef3fb; border: 2px solid var(--blue); font-weight: 750;
+}
+.recipient-guidance {
+  background: #fff; color: var(--ink); border-radius: 14px; padding: 14px 16px; text-align: left;
+  border: 1px solid rgba(24, 32, 44, .08);
+}
+.recipient-guidance h3 { margin: 0 0 8px; font-size: 15px; }
+.recipient-guidance ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.recipient-guidance li { color: var(--ink); font-size: 14px; line-height: 1.45; font-weight: 600; }
+.recipient-guidance-stamp {
+  margin: 10px 0 0; font-size: 11px; font-weight: 800; letter-spacing: .06em; color: var(--red);
+}
+.incident-panel.active .recipient-guidance p,
+.incident-panel.active .recipient-guidance li,
+.incident-panel.active .recipient-guidance h3 { color: var(--ink); }
+.recipient-later { margin: 0; font-size: 13px; color: #684d00; }
+.recipient-later summary { cursor: pointer; font-weight: 700; }
+.recipient-later ul { margin: 8px 0 0; padding-left: 18px; }
+.incident-panel.active .recipient-later,
+.incident-panel.active .recipient-later summary { color: #ffe7a8; }
 
 @media (max-width: 760px) {
   .demo-ribbon { top: 32px; font-size: 12px; }
@@ -286,6 +310,7 @@ body.demo-mode { padding-bottom: 0; }
   .demo-identities { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .demo-id { width: 100%; min-height: 44px; padding: 8px 6px; font-size: 12px; white-space: normal; }
   #demo-reset { width: 100%; }
-  .template-grid, .demo-metrics { grid-template-columns: 1fr; }
+  .template-grid { grid-template-columns: 1fr; }
+  .demo-metrics { grid-template-columns: 1fr 1fr; }
   .incident-panel { position: relative; }
 }
