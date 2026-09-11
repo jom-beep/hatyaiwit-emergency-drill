@@ -68,6 +68,15 @@ const STATUS_TOAST = {
   AWAY: "บันทึกสถานะไม่อยู่ในพื้นที่แล้ว",
 };
 
+const RECIPIENT_STATUS_LABEL = {
+  ACK: "รับทราบ",
+  SAFE: "ปลอดภัย",
+  NEED_HELP: "ต้องการช่วยเหลือ",
+  AWAY: "ไม่อยู่ในพื้นที่",
+};
+
+const SILENT_MODE_STORAGE_KEY = "hyw-demo-silent-lockdown";
+
 const state = {
   config: null,
   me: null,
@@ -85,9 +94,11 @@ const state = {
   ackResponse: null,
   ackedIncidentId: null,
   ackAt: null,
+  ackUpdatedAt: null,
   deferredInstall: null,
   demoApi: null,
   selectedTemplateId: null,
+  lastInstructionKey: null,
 };
 
 function isDemoMode() {
@@ -301,6 +312,76 @@ function formatAckTime(iso) {
   }
 }
 
+function formatAckDateTime(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleString("th-TH", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return formatAckTime(iso);
+  }
+}
+
+function isLockdownLike(type) {
+  return type === "LOCKDOWN";
+}
+
+function readSilentMode() {
+  try {
+    return sessionStorage.getItem(SILENT_MODE_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeSilentMode(enabled) {
+  try {
+    if (enabled) sessionStorage.setItem(SILENT_MODE_STORAGE_KEY, "1");
+    else sessionStorage.removeItem(SILENT_MODE_STORAGE_KEY);
+  } catch {
+    // Private mode may block sessionStorage.
+  }
+  return Boolean(enabled);
+}
+
+function instructionRevisionKey(incident) {
+  const latest = Array.isArray(incident?.updates) ? incident.updates[incident.updates.length - 1] : null;
+  if (latest) return `${incident.id}:${latest.version}:${latest.publishedAt}`;
+  return incident ? `${incident.id}:${incident.version}:${incident.instruction}` : "";
+}
+
+function playCommandCue() {
+  if (!state.demoApi) return;
+  if (isLockdownLike(state.incident?.type) && readSilentMode()) return;
+  try {
+    navigator.vibrate?.([180, 80, 180]);
+  } catch {
+    // Vibration is OS-gated; ignore.
+  }
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.07, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+    osc.addEventListener("ended", () => ctx.close().catch(() => {}));
+  } catch {
+    // Autoplay / AudioContext may be blocked.
+  }
+}
+
 function renderRecipientGuidance(incident) {
   const card = $("#recipient-guidance");
   const list = $("#recipient-guidance-list");
@@ -325,6 +406,99 @@ function renderRecipientGuidance(incident) {
   card.classList.remove("hidden");
 }
 
+function renderCommandUpdates(incident, options = {}) {
+  const card = $("#command-updates");
+  if (!card) return;
+  const demo = Boolean(state.demoApi);
+  const live = incidentIsLive(incident);
+  if (!demo || !live || !incident) {
+    card.classList.add("hidden");
+    card.classList.remove("is-new");
+    return;
+  }
+  const updates = Array.isArray(incident.updates) && incident.updates.length
+    ? incident.updates
+    : [{ version: incident.version, instruction: incident.instruction, publishedAt: incident.issuedAt, publishedBy: "ศูนย์ควบคุม" }];
+  const latest = updates[updates.length - 1];
+  const prior = updates.slice(0, -1).slice().reverse();
+  $("#command-update-badge").textContent = `คำสั่งล่าสุด · เวอร์ชัน ${latest.version}`;
+  $("#command-update-latest").textContent = latest.instruction;
+  const when = formatAckDateTime(latest.publishedAt);
+  const who = latest.publishedBy ? ` · โดย ${latest.publishedBy}` : "";
+  $("#command-update-meta").textContent = when ? `ส่งเมื่อ ${when} น.${who}` : `เวอร์ชัน ${latest.version}${who}`;
+  const history = $("#command-update-history");
+  const list = $("#command-update-history-list");
+  history.classList.toggle("hidden", prior.length === 0);
+  list.replaceChildren(
+    ...prior.map((item) => {
+      const row = document.createElement("li");
+      const stamp = formatAckTime(item.publishedAt);
+      row.textContent = `เวอร์ชัน ${item.version}${stamp ? ` · ${stamp} น.` : ""} — ${item.instruction}`;
+      return row;
+    }),
+  );
+  card.classList.remove("hidden");
+  const key = instructionRevisionKey(incident);
+  const previous = state.lastInstructionKey;
+  const isNew = Boolean(options.fromLive && previous && key && previous !== key);
+  if (isNew) {
+    card.classList.add("is-new");
+    playCommandCue();
+    if (state.me?.role !== "commander") {
+      toast(`มีคำสั่งใหม่จากศูนย์ควบคุม · เวอร์ชัน ${latest.version}`);
+    }
+    window.setTimeout(() => card.classList.remove("is-new"), 4000);
+  }
+  state.lastInstructionKey = key || previous;
+}
+
+function renderSilentLockdown(incident) {
+  const box = $("#silent-lockdown");
+  const toggle = $("#silent-lockdown-toggle");
+  if (!box || !toggle) return;
+  const show = Boolean(state.demoApi && incidentIsLive(incident) && isLockdownLike(incident?.type));
+  box.classList.toggle("hidden", !show);
+  const on = readSilentMode();
+  if (toggle.checked !== on) toggle.checked = on;
+  box.classList.toggle("is-on", show && on);
+}
+
+function renderAllClear(incident) {
+  const card = $("#all-clear");
+  if (!card) return;
+  const demo = Boolean(state.demoApi);
+  const resolved = incident?.status === "RESOLVED";
+  if (!demo || !resolved) {
+    card.classList.add("hidden");
+    return;
+  }
+  const resolvedAt = formatAckDateTime(incident.resolvedAt);
+  $("#all-clear-resolved-at").textContent = resolvedAt
+    ? `ศูนย์ควบคุมประกาศยุติเมื่อ ${resolvedAt} น.`
+    : "ศูนย์ควบคุมประกาศยุติการฝึกซ้อมแล้ว";
+  const sameIncident = state.ackedIncidentId === incident.id && state.ackResponse;
+  if (state.me?.role === "commander") {
+    $("#all-clear-ack").textContent = "สลับเป็นครูผู้รับแจ้งเพื่อดูเวลาที่กดรับทราบของตนเอง";
+    $("#all-clear-status").textContent = "";
+  } else if (sameIncident) {
+    const first = formatAckDateTime(state.ackAt);
+    $("#all-clear-ack").textContent = first
+      ? `คุณรับทราบครั้งแรกเมื่อ ${first} น.`
+      : "คุณกดรับทราบในรอบนี้แล้ว";
+    const statusLabel = RECIPIENT_STATUS_LABEL[state.ackResponse] || state.ackResponse;
+    const last = formatAckDateTime(state.ackUpdatedAt);
+    if (state.ackUpdatedAt && state.ackAt && state.ackUpdatedAt !== state.ackAt) {
+      $("#all-clear-status").textContent = `สถานะล่าสุด: ${statusLabel} · เปลี่ยนเมื่อ ${last} น.`;
+    } else {
+      $("#all-clear-status").textContent = `สถานะล่าสุด: ${statusLabel}`;
+    }
+  } else {
+    $("#all-clear-ack").textContent = "คุณไม่ได้กดรับทราบในรอบนี้";
+    $("#all-clear-status").textContent = "ไม่มีเวลาตอบรับส่วนตัวสำหรับเครื่องนี้";
+  }
+  card.classList.remove("hidden");
+}
+
 function renderAckStatus() {
   const box = $("#ack-status");
   const sameIncident = state.incident && state.ackedIncidentId === state.incident.id;
@@ -335,17 +509,18 @@ function renderAckStatus() {
   const demo = Boolean(state.demoApi);
   const live = incidentIsLive(state.incident);
 
-  if (state.incident?.status === "RESOLVED" && sameIncident && state.ackResponse) {
-    const when = formatAckTime(state.ackAt);
-    box.classList.remove("hidden");
-    box.textContent = when
-      ? `คุณตอบรับแล้ว · ${when} น. — หน้าเคลียร์เหตุแบบเต็มยังไม่เปิดใช้`
-      : "คุณตอบรับแล้วในรอบนี้";
+  if (state.incident?.status === "RESOLVED") {
     ackButton.disabled = true;
     if (demo) {
+      box.classList.add("hidden");
       safeButton.classList.add("hidden");
       helpButton.classList.add("hidden");
       awayButton.classList.add("hidden");
+      ackButton.classList.add("hidden");
+    } else if (sameIncident && state.ackResponse) {
+      const when = formatAckTime(state.ackAt);
+      box.classList.remove("hidden");
+      box.textContent = when ? `คุณรับทราบครั้งแรกเมื่อ ${when} น.` : "คุณตอบรับแล้วในรอบนี้";
     }
     return;
   }
@@ -397,13 +572,15 @@ function renderAckStatus() {
   }
 }
 
-function renderIncident(incident) {
+function renderIncident(incident, options = {}) {
   state.incident = incident;
   const panel = $("#incident-panel");
   const response = $("#incident-response");
+  const demo = Boolean(state.demoApi);
   panel.classList.remove("idle", "active", "resolved", "pending");
   const live = incidentIsLive(incident);
   document.body.classList.toggle("drill-live", live);
+  document.body.classList.toggle("all-clear", Boolean(incident && incident.status === "RESOLVED" && demo));
   if (!incident) {
     panel.classList.add("idle");
     $("#incident-mode").textContent = "พร้อมรับแจ้งเตือน";
@@ -419,8 +596,13 @@ function renderIncident(incident) {
     state.ackResponse = null;
     state.ackedIncidentId = null;
     state.ackAt = null;
+    state.ackUpdatedAt = null;
+    state.lastInstructionKey = null;
     renderAckStatus();
     renderRecipientGuidance(null);
+    renderCommandUpdates(null);
+    renderSilentLockdown(null);
+    renderAllClear(null);
     return;
   }
   const resolved = incident.status === "RESOLVED";
@@ -428,23 +610,36 @@ function renderIncident(incident) {
   if (resolved && state.updatePending) window.setTimeout(applyUpdate, 3000);
   panel.classList.add(resolved ? "resolved" : pending ? "pending" : "active");
   $("#incident-mode").textContent = resolved
-    ? "การฝึกซ้อมสิ้นสุดแล้ว"
+    ? demo
+      ? "ยุติแล้ว"
+      : "การฝึกซ้อมสิ้นสุดแล้ว"
     : pending
       ? "รอผู้ประกาศคนที่ 2 ยืนยันยุติ"
       : "กำลังฝึกซ้อม";
-  $("#incident-title").textContent = resolved ? "การฝึกซ้อมสิ้นสุดแล้ว" : incident.title;
+  $("#incident-title").textContent = resolved
+    ? demo
+      ? "ยุติแล้ว / กลับสู่ปกติ"
+      : "การฝึกซ้อมสิ้นสุดแล้ว"
+    : incident.title;
   $("#incident-instruction").textContent = resolved
-    ? "กรุณารอคำแนะนำจากโรงเรียนก่อนกลับเข้าสู่กิจกรรมตามปกติ"
+    ? demo
+      ? "สามารถกลับเข้าสู่กิจกรรมตามปกติได้ตามคำสั่งโรงเรียน"
+      : "กรุณารอคำแนะนำจากโรงเรียนก่อนกลับเข้าสู่กิจกรรมตามปกติ"
     : incident.instruction;
   $("#incident-meta").textContent = `รหัส ${incident.id} · พื้นที่ ${incident.zone} · เวอร์ชัน ${incident.version}`;
-  response.classList.toggle("hidden", resolved);
+  response.classList.toggle("hidden", resolved && !demo);
+  $("#incident-actions")?.classList.toggle("hidden", Boolean(resolved && demo));
   if (state.ackedIncidentId !== incident.id) {
     state.ackResponse = null;
     state.ackedIncidentId = null;
     state.ackAt = null;
+    state.ackUpdatedAt = null;
   }
   renderAckStatus();
   renderRecipientGuidance(incident);
+  renderCommandUpdates(incident, options);
+  renderSilentLockdown(incident);
+  renderAllClear(incident);
   if (state.me?.role === "commander") {
     $("#commander-start")?.classList.toggle("hidden", !resolved);
     $("#commander-end")?.classList.toggle("hidden", resolved);
@@ -463,7 +658,7 @@ function connectRealtime() {
     setConnectionStatus(true);
     state.demoApi.subscribe((message) => {
       if (message?.type === "incident_state") {
-        renderIncident(message.incident);
+        renderIncident(message.incident, { fromLive: true });
         if (state.me?.role === "commander") refreshDashboard();
       }
     });
@@ -526,11 +721,15 @@ async function acknowledge(response) {
     response: state.ackResponse,
     id: state.ackedIncidentId,
     at: state.ackAt,
+    updatedAt: state.ackUpdatedAt,
   };
   if (response === "ACK") $("#ack-button").disabled = true;
+  const firstTime = !previous.response || previous.id !== incidentId;
   state.ackResponse = response;
   state.ackedIncidentId = incidentId;
-  state.ackAt = new Date().toISOString();
+  const stamp = new Date().toISOString();
+  if (firstTime || !state.ackAt) state.ackAt = stamp;
+  state.ackUpdatedAt = stamp;
   renderAckStatus();
   try {
     const result = await api("/api/acknowledgements", {
@@ -541,12 +740,15 @@ async function acknowledge(response) {
         zone: $("#device-zone").value,
       }),
     });
-    if (result?.createdAt) state.ackAt = result.createdAt;
+    if (result?.firstAckAt) state.ackAt = result.firstAckAt;
+    else if (firstTime && result?.createdAt) state.ackAt = result.createdAt;
+    if (result?.createdAt) state.ackUpdatedAt = result.createdAt;
     toast(STATUS_TOAST[response] || "บันทึกสถานะแล้ว");
   } catch (error) {
     state.ackResponse = previous.response;
     state.ackedIncidentId = previous.id;
     state.ackAt = previous.at;
+    state.ackUpdatedAt = previous.updatedAt;
     $("#ack-button").disabled = false;
     renderAckStatus();
     toast(error.message);
@@ -667,6 +869,26 @@ async function resolveDrill() {
     toast(error.message);
   } finally {
     button.disabled = false;
+  }
+}
+
+async function pushInstructionUpdate() {
+  if (!state.demoApi) return;
+  const button = $("#push-update");
+  const text = $("#update-instruction")?.value ?? "";
+  if (button) button.disabled = true;
+  try {
+    const result = await api("/api/incidents/update", {
+      method: "POST",
+      body: JSON.stringify({ instruction: text }),
+    });
+    $("#update-instruction").value = "";
+    toast(`ส่งคำสั่งเวอร์ชัน ${result.update?.version ?? result.incident.version} แล้ว`);
+    if (state.me?.role === "commander") await refreshDashboard();
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -1014,6 +1236,7 @@ function applyDemoIdentity(me) {
   state.ackResponse = me.ackResponse || null;
   state.ackedIncidentId = me.ackedIncidentId || null;
   state.ackAt = me.ackAt || null;
+  state.ackUpdatedAt = me.ackUpdatedAt || me.ackAt || null;
   const roleLabel = ROLE_LABEL[me.role] || me.role;
   $("#account-label").textContent = `${me.displayName || me.email} · ${roleLabel}`;
   for (const button of document.querySelectorAll(".demo-id")) {
@@ -1149,6 +1372,16 @@ window.setInterval(checkVersion, VERSION_POLL_MS);
 $("#view-user").addEventListener("click", () => setView("user"));
 $("#view-admin").addEventListener("click", () => setView("admin"));
 $("#resolve-drill").addEventListener("click", resolveDrill);
+$("#push-update")?.addEventListener("click", pushInstructionUpdate);
+$("#silent-lockdown-toggle")?.addEventListener("change", (event) => {
+  writeSilentMode(event.target.checked);
+  renderSilentLockdown(state.incident);
+  toast(
+    event.target.checked
+      ? "โหมดเงียบ: ปิดเสียงและสั่นที่แอปจำลองขณะล็อกดาวน์"
+      : "เปิดเสียงและสั่นจำลองของแอปแล้ว",
+  );
+});
 $("#refresh-dashboard").addEventListener("click", () => {
   refreshDashboard();
   refreshRoster();

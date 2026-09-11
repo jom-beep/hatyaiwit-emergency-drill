@@ -43,6 +43,51 @@ export const DRILL_TEMPLATES = [
 /** Explicit recipient status. AWAY is a response — not the same as silent/non-responder. */
 export const RECIPIENT_STATUSES = ["ACK", "SAFE", "NEED_HELP", "AWAY"];
 
+/** Match production: two distinct commanders must confirm resolve. Do not lower this in demo. */
+export const RESOLUTION_APPROVALS_REQUIRED = 2;
+
+export const SILENT_MODE_STORAGE_KEY = "hyw-demo-silent-lockdown";
+
+export const RECIPIENT_STATUS_LABEL = {
+  ACK: "รับทราบ",
+  SAFE: "ปลอดภัย",
+  NEED_HELP: "ต้องการช่วยเหลือ",
+  AWAY: "ไม่อยู่ในพื้นที่",
+};
+
+/** LOCKDOWN templates (ล็อกดาวน์ / ภัยคุกคาม) share type LOCKDOWN. */
+export function isLockdownLike(type) {
+  return type === "LOCKDOWN";
+}
+
+export function readSilentMode(storage) {
+  return storage?.getItem?.(SILENT_MODE_STORAGE_KEY) === "1";
+}
+
+export function writeSilentMode(storage, enabled) {
+  if (!storage) return Boolean(enabled);
+  if (enabled) storage.setItem(SILENT_MODE_STORAGE_KEY, "1");
+  else storage.removeItem(SILENT_MODE_STORAGE_KEY);
+  return Boolean(enabled);
+}
+
+export function latestInstructionUpdate(incident) {
+  const updates = incident?.updates;
+  if (Array.isArray(updates) && updates.length) return updates[updates.length - 1];
+  if (!incident) return null;
+  return {
+    version: incident.version ?? 1,
+    instruction: incident.instruction,
+    publishedAt: incident.issuedAt,
+    publishedBy: "ศูนย์ควบคุม",
+  };
+}
+
+export function priorInstructionUpdates(incident) {
+  const updates = Array.isArray(incident?.updates) ? incident.updates : [];
+  return updates.slice(0, Math.max(0, updates.length - 1)).slice().reverse();
+}
+
 export const RECIPIENT_GUIDANCE = {
   LOCKDOWN: {
     title: "ขณะล็อกดาวน์ / ปิดพื้นที่",
@@ -176,9 +221,10 @@ function templateByType(type) {
   return DRILL_TEMPLATES.find((item) => item.type === type) ?? DRILL_TEMPLATES[0];
 }
 
-export function makeIncident(nowMs, template, zone = "ALL") {
+export function makeIncident(nowMs, template, zone = "ALL", publisher = "ศูนย์ควบคุม") {
   const issued = new Date(nowMs);
   const stamp = issued.toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  const issuedAt = issued.toISOString();
   return {
     id: `DEMO-${stamp}-walkthru`,
     version: 1,
@@ -188,8 +234,16 @@ export function makeIncident(nowMs, template, zone = "ALL") {
     zone,
     title: `[การฝึกซ้อม] ${template.labelTh}`,
     instruction: template.instruction,
-    issuedAt: issued.toISOString(),
+    issuedAt,
     expiresAt: new Date(nowMs + 2 * 60 * 60_000).toISOString(),
+    updates: [
+      {
+        version: 1,
+        instruction: template.instruction,
+        publishedAt: issuedAt,
+        publishedBy: publisher,
+      },
+    ],
   };
 }
 
@@ -203,6 +257,7 @@ function seedAcknowledgements(people, incidentId, nowIso) {
       response: person.initial,
       zone: person.zone,
       createdAt: nowIso,
+      firstAckAt: nowIso,
     });
   }
   return rows;
@@ -276,6 +331,31 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function normalizeIncident(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const incident = clone(raw);
+  if (!Array.isArray(incident.updates) || incident.updates.length === 0) {
+    incident.updates = [
+      {
+        version: 1,
+        instruction: incident.instruction,
+        publishedAt: incident.issuedAt,
+        publishedBy: "ศูนย์ควบคุม",
+      },
+    ];
+  }
+  return incident;
+}
+
+function normalizeAck(row) {
+  if (!row || typeof row !== "object") return row;
+  return {
+    ...row,
+    firstAckAt: row.firstAckAt ?? row.createdAt,
+    createdAt: row.createdAt ?? row.firstAckAt,
+  };
+}
+
 export function createDemoStore(options = {}) {
   const now = options.now ?? (() => Date.now());
   const storage = options.storage ?? null;
@@ -317,8 +397,8 @@ export function createDemoStore(options = {}) {
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== "object") return false;
       identityId = parsed.identityId === "commander2" || parsed.identityId === "member" ? parsed.identityId : "commander";
-      incident = parsed.incident ?? null;
-      acknowledgements = Array.isArray(parsed.acknowledgements) ? parsed.acknowledgements : [];
+      incident = parsed.incident ? normalizeIncident(parsed.incident) : null;
+      acknowledgements = Array.isArray(parsed.acknowledgements) ? parsed.acknowledgements.map(normalizeAck) : [];
       resolutionApprovals = Array.isArray(parsed.resolutionApprovals) ? parsed.resolutionApprovals : [];
       return true;
     } catch {
@@ -376,12 +456,14 @@ export function createDemoStore(options = {}) {
         schoolName: "โรงเรียนหาดใหญ่วิทยาลัย (โหมดสาธิต)",
         mode: "DRILL",
         googleDomain: "khanchai.ac.th",
-        version: "demo-0.7.0",
+        version: "demo-0.8.0",
         vapidPublicKey: "",
         zones: clone(DEMO_ZONES),
         demo: true,
         templates: clone(DRILL_TEMPLATES),
         recipientGuidance: clone(RECIPIENT_GUIDANCE),
+        resolutionApprovalsRequired: RESOLUTION_APPROVALS_REQUIRED,
+        silentModeKey: SILENT_MODE_STORAGE_KEY,
       };
     },
     getMe() {
@@ -402,7 +484,8 @@ export function createDemoStore(options = {}) {
         personId,
         ackResponse: ack?.response ?? null,
         ackedIncidentId: ack?.incidentId ?? null,
-        ackAt: ack?.createdAt ?? null,
+        ackAt: ack?.firstAckAt ?? ack?.createdAt ?? null,
+        ackUpdatedAt: ack?.createdAt ?? null,
       };
     },
     setIdentity(id) {
@@ -428,17 +511,45 @@ export function createDemoStore(options = {}) {
         throw new DemoError(400, "ข้อมูลตอบรับไม่ถูกต้อง");
       }
       const existing = acknowledgements.find((row) => row.incidentId === incidentId && row.personId === personId);
+      const stamp = new Date(now()).toISOString();
       const row = {
         incidentId,
         personId,
         response,
         zone: zone ?? people.find((person) => person.id === personId)?.zone ?? "ALL",
-        createdAt: new Date(now()).toISOString(),
+        createdAt: stamp,
+        firstAckAt: existing?.firstAckAt ?? stamp,
       };
       if (existing) Object.assign(existing, row);
       else acknowledgements.push(row);
       emit();
-      return { ok: true, response, createdAt: row.createdAt };
+      return { ok: true, response, createdAt: row.createdAt, firstAckAt: row.firstAckAt };
+    },
+    pushUpdate({ instruction }) {
+      const identity = currentIdentity();
+      if (identity.role !== "commander") throw new DemoError(403, "ไม่มีสิทธิ์ดำเนินการนี้");
+      if (!incident || incident.status === "RESOLVED") {
+        throw new DemoError(409, "ไม่มีเหตุที่กำลังดำเนินอยู่");
+      }
+      const text = String(instruction ?? "").trim().slice(0, 240);
+      if (text.length < 10) throw new DemoError(400, "คำแนะนำต้องมีอย่างน้อย 10 ตัวอักษร");
+      const publishedAt = new Date(now()).toISOString();
+      const nextVersion = incident.version + 1;
+      const updates = Array.isArray(incident.updates) ? clone(incident.updates) : [];
+      updates.push({
+        version: nextVersion,
+        instruction: text,
+        publishedAt,
+        publishedBy: identity.callSign || identity.displayName,
+      });
+      incident = {
+        ...incident,
+        version: nextVersion,
+        instruction: text,
+        updates,
+      };
+      emit();
+      return { incident: getActive(), update: clone(updates[updates.length - 1]) };
     },
     createActionToken() {
       const identity = currentIdentity();
@@ -462,8 +573,9 @@ export function createDemoStore(options = {}) {
       const text = String(instruction ?? template.instruction).trim();
       if (text.length < 10) throw new DemoError(400, "คำแนะนำต้องมีอย่างน้อย 10 ตัวอักษร");
       const selectedZone = DEMO_ZONES.some((item) => item.id === zone) ? zone : "ALL";
-      incident = makeIncident(now(), template, selectedZone);
+      incident = makeIncident(now(), template, selectedZone, identity.callSign || identity.displayName);
       incident.instruction = text;
+      if (incident.updates?.[0]) incident.updates[0].instruction = text;
       acknowledgements = [];
       resolutionApprovals = [];
       emit();
@@ -475,7 +587,7 @@ export function createDemoStore(options = {}) {
       if (!incident || incident.status === "RESOLVED") throw new DemoError(409, "ไม่มีเหตุที่กำลังดำเนินอยู่");
       const hash = identity.callSign;
       if (!resolutionApprovals.includes(hash)) resolutionApprovals.push(hash);
-      const resolved = resolutionApprovals.length >= 2;
+      const resolved = resolutionApprovals.length >= RESOLUTION_APPROVALS_REQUIRED;
       incident = {
         ...incident,
         version: incident.version + 1,
@@ -486,7 +598,7 @@ export function createDemoStore(options = {}) {
       return {
         incident: getActive(),
         approvalCount: resolutionApprovals.length,
-        approvalsRequired: Math.max(0, 2 - resolutionApprovals.length),
+        approvalsRequired: Math.max(0, RESOLUTION_APPROVALS_REQUIRED - resolutionApprovals.length),
       };
     },
     reset() {
@@ -520,7 +632,7 @@ export function createDemoApi(options = {}) {
     try {
       if (method === "GET" && pathname === "/api/config") return store.getConfig();
       if (method === "GET" && pathname === "/api/health") return { ok: true, mode: "DRILL", demo: true };
-      if (method === "GET" && pathname === "/api/version") return { version: "demo-0.7.0" };
+      if (method === "GET" && pathname === "/api/version") return { version: "demo-0.8.0" };
       if (method === "GET" && pathname === "/api/me") return store.getMe();
       if (method === "GET" && pathname === "/api/incidents/active") return { incident: store.getActive() };
       if (method === "GET" && pathname === "/api/dashboard") return store.getDashboard();
@@ -528,6 +640,7 @@ export function createDemoApi(options = {}) {
       if (method === "POST" && pathname === "/api/commander/action-token") return store.createActionToken();
       if (method === "POST" && pathname === "/api/incidents/drill") return store.activateDrill(body);
       if (method === "POST" && pathname === "/api/incidents/resolve") return store.resolveDrill();
+      if (method === "POST" && pathname === "/api/incidents/update") return store.pushUpdate(body);
       if (method === "GET" && pathname === "/api/commander/roster") {
         return {
           you: store.getMe().callSign,

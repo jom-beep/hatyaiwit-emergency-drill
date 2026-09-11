@@ -91,14 +91,38 @@
               <ul id="recipient-guidance-list"></ul>
               <p class="recipient-guidance-stamp">นี่คือการฝึกซ้อม · DRILL</p>
             </aside>
-            <details id="recipient-later" class="recipient-later demo-only">
-              <summary>ของที่ยังไม่ทำในรอบนี้ (4–6)</summary>
-              <ul>
-                <li>คำสั่งเพิ่มจากศูนย์ควบคุมแบบมีเลขเวอร์ชัน</li>
-                <li>โหมดเงียบ (ปิดเสียง/สั่น) ตอนล็อกดาวน์</li>
-                <li>หน้าเคลียร์เหตุพร้อมเวลาที่กดรับทราบของตนเอง</li>
-              </ul>
-            </details>
+            <aside id="command-updates" class="command-updates demo-only hidden">
+              <span class="eyebrow">คำสั่งจากศูนย์ควบคุม</span>
+              <p id="command-update-badge" class="command-update-badge">เวอร์ชัน 1</p>
+              <p id="command-update-latest" class="command-update-latest"></p>
+              <p id="command-update-meta" class="command-update-meta"></p>
+              <details id="command-update-history" class="command-update-history hidden">
+                <summary>ประวัติคำสั่งก่อนหน้า</summary>
+                <ol id="command-update-history-list"></ol>
+              </details>
+            </aside>
+            <div id="silent-lockdown" class="silent-lockdown demo-only hidden">
+              <label class="silent-toggle" for="silent-lockdown-toggle">
+                <input id="silent-lockdown-toggle" type="checkbox" />
+                <span>โหมดเงียบ — ปิดเสียงและสั่นของแอปนี้</span>
+              </label>
+              <p class="note" id="silent-lockdown-note">
+                จำลองในโหมดสาธิต: ปิดเฉพาะเสียงบี๊บและการสั่นที่แอปเล่นตอนมีคำสั่งใหม่ขณะล็อกดาวน์
+                ระบบปฏิบัติการอาจยังส่งเสียงแจ้งเตือนของเครื่อง และเว็บควบคุมการสั่นของ iOS/Android ได้ไม่เต็มที่
+                โหมดสาธิตไม่ส่ง Web Push จริง
+              </p>
+            </div>
+            <aside id="all-clear" class="all-clear demo-only hidden">
+              <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL</p>
+              <p class="all-clear-kicker">ยุติแล้ว</p>
+              <h3>กลับสู่ปกติ</h3>
+              <p id="all-clear-resolved-at"></p>
+              <p id="all-clear-ack" class="all-clear-ack"></p>
+              <p id="all-clear-status"></p>
+              <p class="note" id="all-clear-doc">
+                เวลาส่วนตัวคือครั้งแรกที่คุณกดรับทราบในรอบนี้ หากเปลี่ยนสถานะภายหลัง จะแสดงเวลาล่าสุดแยกต่างหาก
+              </p>
+            </aside>
           </div>
         </section>
 
@@ -217,6 +241,12 @@
           <div id="commander-end" class="commander-end hidden">
             <p id="resolve-hint" class="resolve-hint">การยุติต้องได้รับการยืนยันจากผู้ประกาศ 2 คนที่ต่างกัน</p>
             <p class="note demo-only">โหมดสาธิต: สลับเป็น «ผู้ประกาศ 2» ด้านบน แล้วกดยืนยันอีกครั้ง</p>
+            <div id="commander-update" class="commander-update demo-only">
+              <label for="update-instruction">คำสั่งเพิ่มจากศูนย์ควบคุม</label>
+              <textarea id="update-instruction" rows="2" maxlength="240" placeholder="พิมพ์คำสั่งสั้น เช่น รอในห้องต่อไป จนกว่าจะมีคำสั่งใหม่"></textarea>
+              <button id="push-update" class="button secondary wide" type="button">ส่งคำสั่งใหม่ (เพิ่มเวอร์ชัน)</button>
+              <p class="note">ผู้รับแจ้งจะเห็นข้อความล่าสุดชัดเจน และเปิดดูประวัติเวอร์ชันก่อนหน้าได้</p>
+            </div>
             <button id="resolve-drill" class="button secondary wide" type="button">ยืนยันการยุติการฝึกซ้อม</button>
           </div>
         </section>
