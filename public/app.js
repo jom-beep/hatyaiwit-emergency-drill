@@ -522,7 +522,16 @@ async function submitReport(event) {
 async function acknowledge(response) {
   if (!state.incident || state.incident.status === "RESOLVED") return;
   const incidentId = state.incident.id;
+  const previous = {
+    response: state.ackResponse,
+    id: state.ackedIncidentId,
+    at: state.ackAt,
+  };
   if (response === "ACK") $("#ack-button").disabled = true;
+  state.ackResponse = response;
+  state.ackedIncidentId = incidentId;
+  state.ackAt = new Date().toISOString();
+  renderAckStatus();
   try {
     const result = await api("/api/acknowledgements", {
       method: "POST",
@@ -532,14 +541,14 @@ async function acknowledge(response) {
         zone: $("#device-zone").value,
       }),
     });
-    state.ackResponse = response;
-    state.ackedIncidentId = incidentId;
-    state.ackAt = new Date().toISOString();
     if (result?.createdAt) state.ackAt = result.createdAt;
-    renderAckStatus();
     toast(STATUS_TOAST[response] || "บันทึกสถานะแล้ว");
   } catch (error) {
+    state.ackResponse = previous.response;
+    state.ackedIncidentId = previous.id;
+    state.ackAt = previous.at;
     $("#ack-button").disabled = false;
+    renderAckStatus();
     toast(error.message);
   }
 }
