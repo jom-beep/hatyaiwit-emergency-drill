@@ -16,7 +16,8 @@
     <script src="/app.js" defer></script>
   </head>
   <body class="is-logged-out">
-    <div class="drill-ribbon">ฝึกซ้อมเท่านั้น · DRILL ONLY · ไม่ใช่เหตุจริง</div>
+    <div class="drill-ribbon">นี่คือการฝึกซ้อม · DRILL ONLY · ไม่ใช่เหตุจริง</div>
+    <div id="demo-ribbon" class="demo-ribbon demo-only">โหมดสาธิต · ข้อมูลจำลอง · ไม่เชื่อม Google · ไม่ส่งแจ้งเตือนจริง</div>
     <header class="topbar">
       <div class="brand">
         <img src="/icon.svg" alt="" width="44" height="44" />
@@ -34,6 +35,15 @@
         <button id="logout-button" class="button ghost hidden" type="button">ออกจากระบบ</button>
       </div>
     </header>
+    <div id="demo-toolbar" class="demo-toolbar demo-only">
+      <p class="demo-toolbar-label">สลับบทบาทจำลอง</p>
+      <div id="demo-identities" class="demo-identities" role="tablist" aria-label="บทบาทจำลอง">
+        <button class="demo-id is-active" type="button" data-identity="commander">ผู้ประกาศ 1</button>
+        <button class="demo-id" type="button" data-identity="commander2">ผู้ประกาศ 2</button>
+        <button class="demo-id" type="button" data-identity="member">ครูผู้รับแจ้ง</button>
+      </div>
+      <button id="demo-reset" class="button ghost" type="button">รีเซ็ตข้อมูลจำลอง</button>
+    </div>
 
     <div id="boot-screen" class="boot-screen" role="status">กำลังโหลดระบบ…</div>
     <section id="boot-error" class="card boot-error hidden">
@@ -51,11 +61,14 @@
         <a class="button primary wide" href="/auth/login">เข้าสู่ระบบด้วย Google Workspace</a>
         <p class="note">วันซ้อม: ติดตั้งแอปบนหน้าจอหลักก่อน แล้วค่อยเปิดการแจ้งเตือน</p>
         <button id="login-open-guide" class="button ghost wide" type="button">วิธีติดตั้งบน iPhone / Android</button>
+        <a id="demo-entry" class="button secondary wide" href="/demo">ดูโหมดสาธิต — ไม่ต้องเข้าสู่ระบบ</a>
+        <p class="note">โหมดสาธิตเป็นข้อมูลจำลองสำหรับเดินดูวันซ้อม ไม่แตะบัญชีจริง และไม่ส่ง Push</p>
       </section>
 
       <div id="app-panel" class="hidden">
         <section id="incident-panel" class="incident-panel idle" aria-live="assertive">
           <div class="incident-copy">
+            <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL</p>
             <div class="incident-status-row">
               <span id="incident-mode" class="pill">พร้อมรับแจ้งเตือน</span>
               <span id="connection-status" class="connection-status">กำลังเชื่อมต่อ…</span>
@@ -65,16 +78,34 @@
             <small id="incident-meta"></small>
             <p id="ack-status" class="ack-status hidden"></p>
           </div>
-          <div id="incident-actions" class="incident-actions hidden">
-            <button id="ack-button" class="button success ack-main" type="button">รับทราบ</button>
-            <button id="help-button" class="button danger-outline" type="button">ต้องการความช่วยเหลือ</button>
+          <div id="incident-response" class="incident-response hidden">
+            <div id="incident-actions" class="incident-actions">
+              <button id="ack-button" class="button success ack-main" type="button">รับทราบ</button>
+              <button id="safe-button" class="button success demo-only hidden" type="button">ปลอดภัย</button>
+              <button id="help-button" class="button danger-outline" type="button">ต้องการความช่วยเหลือ</button>
+              <button id="away-button" class="button away-status demo-only hidden" type="button">ไม่อยู่ในพื้นที่</button>
+            </div>
+            <aside id="recipient-guidance" class="recipient-guidance hidden">
+              <span class="eyebrow">สิ่งที่ควรทำตอนนี้</span>
+              <h3 id="recipient-guidance-title">คำแนะนำตามประเภทเหตุ</h3>
+              <ul id="recipient-guidance-list"></ul>
+              <p class="recipient-guidance-stamp">นี่คือการฝึกซ้อม · DRILL</p>
+            </aside>
+            <details id="recipient-later" class="recipient-later demo-only">
+              <summary>ของที่ยังไม่ทำในรอบนี้ (4–6)</summary>
+              <ul>
+                <li>คำสั่งเพิ่มจากศูนย์ควบคุมแบบมีเลขเวอร์ชัน</li>
+                <li>โหมดเงียบ (ปิดเสียง/สั่น) ตอนล็อกดาวน์</li>
+                <li>หน้าเคลียร์เหตุพร้อมเวลาที่กดรับทราบของตนเอง</li>
+              </ul>
+            </details>
           </div>
         </section>
 
         <div id="user-view">
         <div id="user-secondary" class="user-secondary">
         <div class="grid two-columns">
-          <section class="card">
+          <section class="card prod-only">
             <div class="section-heading">
               <div>
                 <span class="eyebrow">ก่อนวันซ้อม</span>
@@ -95,7 +126,7 @@
             <p id="ios-help" class="note hidden">iPhone/iPad ต้อง "เพิ่มลงหน้าจอโฮม" ด้วย Safari ก่อน แล้วเปิดจากไอคอนที่ติดตั้ง จึงจะรับการแจ้งเตือนได้</p>
           </section>
 
-          <section class="card">
+          <section class="card prod-only">
             <span class="eyebrow">ไม่ใช่การประกาศทั้งโรงเรียน</span>
             <h2>รายงานสิ่งผิดปกติ</h2>
             <form id="report-form">
@@ -117,7 +148,7 @@
           </section>
         </div>
 
-        <section class="card compact invite-card">
+        <section class="card compact invite-card prod-only">
           <h2>มีรหัสเชิญผู้ประกาศ?</h2>
           <p class="note">วางรหัสที่ได้รับเป็นการส่วนตัว แล้วกดยืนยัน ใช้ได้ครั้งเดียว</p>
           <form id="invite-form" class="inline-form">
@@ -131,7 +162,7 @@
         </div>
 
         <div id="admin-view" class="hidden">
-        <section id="reports-panel" class="card commander hidden">
+        <section id="reports-panel" class="card commander hidden prod-only">
           <div class="section-heading">
             <div>
               <span class="eyebrow">รอรับเรื่อง</span>
@@ -145,6 +176,7 @@
         </section>
 
         <section id="commander-panel" class="card commander">
+          <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL</p>
           <div class="section-heading">
             <div>
               <span class="eyebrow">ผู้ประกาศเท่านั้น</span>
@@ -154,6 +186,7 @@
           </div>
 
           <div id="commander-start">
+            <div id="drill-templates" class="template-grid demo-only"></div>
             <div class="grid commander-fields">
               <div>
                 <label for="drill-type">รูปแบบการฝึกซ้อม</label>
@@ -183,11 +216,13 @@
 
           <div id="commander-end" class="commander-end hidden">
             <p id="resolve-hint" class="resolve-hint">การยุติต้องได้รับการยืนยันจากผู้ประกาศ 2 คนที่ต่างกัน</p>
+            <p class="note demo-only">โหมดสาธิต: สลับเป็น «ผู้ประกาศ 2» ด้านบน แล้วกดยืนยันอีกครั้ง</p>
             <button id="resolve-drill" class="button secondary wide" type="button">ยืนยันการยุติการฝึกซ้อม</button>
           </div>
         </section>
 
         <section id="dashboard-panel" class="card commander">
+          <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL</p>
           <div class="section-heading">
             <div>
               <span class="eyebrow">ศูนย์ควบคุม</span>
@@ -202,9 +237,49 @@
             <div><strong id="metric-ack">–</strong><span>รับทราบ</span></div>
             <div><strong id="metric-help">–</strong><span>ต้องการช่วยเหลือ</span></div>
           </div>
+          <div id="demo-status-metrics" class="metrics demo-metrics demo-only">
+            <div><strong id="metric-safe">–</strong><span>ปลอดภัย</span></div>
+            <div><strong id="metric-away">–</strong><span>ไม่อยู่ในพื้นที่</span></div>
+            <div><strong id="metric-silent">–</strong><span>ยังไม่ตอบ</span></div>
+            <div><strong id="metric-ack-rate">–</strong><span>อัตรารับทราบ</span></div>
+          </div>
         </section>
 
-        <section id="roster-panel" class="card commander roster-card">
+        <section id="nonresponder-panel" class="card commander demo-only hidden">
+          <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL</p>
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">ยังไม่ตอบรับ</span>
+              <h2>ผู้ที่ยังไม่กดรับทราบ</h2>
+            </div>
+            <span id="nonresponder-count" class="pill commander-pill">0</span>
+          </div>
+          <p class="note">จัดกลุ่มตามอาคาร/พื้นที่ — คนที่ยังไม่กดรับทราบเลย ไม่รวมผู้ที่กด «ไม่อยู่ในพื้นที่»</p>
+          <div id="nonresponder-zones" class="zone-groups"></div>
+          <p id="nonresponder-empty" class="empty-state hidden">ทุกคนในรายชื่อจำลองกดรับทราบแล้ว</p>
+        </section>
+
+        <section id="afteraction-panel" class="card commander demo-only hidden">
+          <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL</p>
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">สรุปหลังซ้อม</span>
+              <h2>After-action</h2>
+            </div>
+          </div>
+          <p id="afteraction-title" class="afteraction-title"></p>
+          <div class="metrics">
+            <div><strong id="afteraction-rate">–</strong><span>อัตรารับทราบ</span></div>
+            <div><strong id="afteraction-responded">–</strong><span>ตอบแล้ว / ทั้งหมด</span></div>
+            <div><strong id="afteraction-safe">–</strong><span>ปลอดภัย</span></div>
+            <div><strong id="afteraction-help">–</strong><span>ต้องการช่วยเหลือ</span></div>
+            <div><strong id="afteraction-away">–</strong><span>ไม่อยู่ในพื้นที่</span></div>
+          </div>
+          <h3 class="subhead">รายชื่อที่ยังไม่ตอบ</h3>
+          <div id="afteraction-silent" class="zone-groups"></div>
+        </section>
+
+        <section id="roster-panel" class="card commander roster-card prod-only">
           <details>
             <summary>
               <span>

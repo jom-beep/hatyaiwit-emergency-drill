@@ -23,6 +23,7 @@ import { audit } from "./audit";
 import { runMaintenance } from "./maintenance";
 import { callSignFor, commanderRoster, reinviteCommander, revokeCommander } from "./roles";
 import { claimReport, openReports, startEscalation } from "./escalation";
+import { isDemoPagePath } from "./demo-gate";
 export { IncidentCoordinator } from "./incident-object";
 
 const ALERT_TYPES = new Set(["LOCKDOWN", "EVACUATE", "SHELTER", "MEDICAL", "INFORMATION"]);
@@ -452,6 +453,14 @@ async function api(request: Request, env: Env): Promise<Response> {
 
 async function handle(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
+  if (request.method === "GET" && isDemoPagePath(url.pathname)) {
+    // Serve the same PWA shell. Demo auth bypass lives only in the client mock,
+    // never on /api/* — those routes still go through authenticate().
+    const shell = new URL("/index.html", url.origin);
+    const asset = await env.ASSETS.fetch(new Request(shell, request));
+    if (asset.ok) return asset;
+    return env.ASSETS.fetch(new Request(new URL("/", url.origin), request));
+  }
   if (request.method === "GET" && url.pathname === "/auth/login") return beginGoogleLogin(request, env);
   if (request.method === "GET" && url.pathname === "/auth/callback") return finishGoogleLogin(request, env);
   if (request.method === "POST" && url.pathname === "/auth/logout") return logout(env);

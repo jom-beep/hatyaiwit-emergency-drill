@@ -14,6 +14,60 @@ const ROLE_LABEL = {
   system_admin: "ผู้ดูแลระบบ",
 };
 
+const RECIPIENT_GUIDANCE = {
+  LOCKDOWN: {
+    title: "ขณะล็อกดาวน์ / ปิดพื้นที่",
+    steps: [
+      "เงียบ — ห้ามพูดคุยหรือโทรออกนอกจากจำเป็น",
+      "ปิดไฟ และอยู่ห่างจากหน้าต่างกับประตู",
+      "ห้ามเปิดประตูให้ใคร จนกว่าศูนย์ควบคุมจะประกาศยุติ",
+      "นั่งหรือหมอบในจุดกำบังภายในห้อง",
+    ],
+  },
+  EVACUATE: {
+    title: "ขณะอพยพ",
+    steps: [
+      "เดินตามเส้นทางหนีไฟไปยังจุดรวมพล",
+      "ห้ามใช้ลิฟต์",
+      "อย่ากลับเข้าอาคารจนกว่าจะได้รับคำสั่ง",
+      "รวมตัวแล้วรอตรวจนับจากครูประจำชั้น",
+    ],
+  },
+  SHELTER: {
+    title: "ขณะอยู่ในพื้นที่ปลอดภัย",
+    steps: [
+      "หมอบ-กำบัง-ยึด ใต้โต๊ะหรือโครงสร้างแข็ง",
+      "อยู่ห่างจากกระจกและของที่อาจร่วง",
+      "อย่าวิ่งออกนอกห้องจนกว่าแรงสั่นหรือภัยจะผ่าน",
+      "รอคำสั่งอพยพหรือยุติจากศูนย์ควบคุม",
+    ],
+  },
+  MEDICAL: {
+    title: "ขณะมีเหตุการแพทย์",
+    steps: [
+      "อยู่กับที่ถ้าไม่ใช่ผู้ช่วยเหลือ",
+      "เปิดทางให้เจ้าหน้าที่และความช่วยเหลือ",
+      "อย่าถ่ายภาพหรือรวมตัวดูเหตุ",
+      "รอคำสั่งจากศูนย์ควบคุม",
+    ],
+  },
+  INFORMATION: {
+    title: "ประกาศจากศูนย์ควบคุม",
+    steps: [
+      "อ่านประกาศให้ครบแล้วปฏิบัติตาม",
+      "อย่าส่งต่อข่าวที่ไม่ใช่จากโรงเรียน",
+      "รอการอัปเดตจากศูนย์ควบคุม",
+    ],
+  },
+};
+
+const STATUS_TOAST = {
+  ACK: "บันทึกการรับทราบแล้ว",
+  SAFE: "บันทึกสถานะปลอดภัยแล้ว",
+  NEED_HELP: "ส่งคำขอความช่วยเหลือไปยังศูนย์ควบคุมแล้ว",
+  AWAY: "บันทึกสถานะไม่อยู่ในพื้นที่แล้ว",
+};
+
 const state = {
   config: null,
   me: null,
@@ -30,12 +84,20 @@ const state = {
   reportsTimer: null,
   ackResponse: null,
   ackedIncidentId: null,
+  ackAt: null,
   deferredInstall: null,
+  demoApi: null,
+  selectedTemplateId: null,
 };
+
+function isDemoMode() {
+  return location.pathname.replace(/\/+$/, "") === "/demo" || new URLSearchParams(location.search).get("demo") === "1";
+}
 
 const $ = (selector) => document.querySelector(selector);
 
 async function api(path, options = {}) {
+  if (state.demoApi) return state.demoApi.handle(path, options);
   const response = await fetch(path, {
     credentials: "same-origin",
     ...options,
@@ -230,31 +292,115 @@ function incidentIsLive(incident) {
   return Boolean(incident && incident.status !== "RESOLVED");
 }
 
+function formatAckTime(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+function renderRecipientGuidance(incident) {
+  const card = $("#recipient-guidance");
+  const list = $("#recipient-guidance-list");
+  const title = $("#recipient-guidance-title");
+  if (!card || !list || !title) return;
+  const live = incidentIsLive(incident);
+  if (!live) {
+    card.classList.add("hidden");
+    list.replaceChildren();
+    return;
+  }
+  const catalog = state.config?.recipientGuidance || RECIPIENT_GUIDANCE;
+  const guidance = catalog[incident.type] || RECIPIENT_GUIDANCE.INFORMATION;
+  title.textContent = guidance.title;
+  list.replaceChildren(
+    ...guidance.steps.map((step) => {
+      const item = document.createElement("li");
+      item.textContent = step;
+      return item;
+    }),
+  );
+  card.classList.remove("hidden");
+}
+
 function renderAckStatus() {
   const box = $("#ack-status");
   const sameIncident = state.incident && state.ackedIncidentId === state.incident.id;
-  if (!state.incident || state.incident.status === "RESOLVED" || !sameIncident || !state.ackResponse) {
-    box.classList.add("hidden");
-    box.textContent = "";
-    $("#ack-button").disabled = false;
-    $("#ack-button").textContent = "รับทราบ";
+  const safeButton = $("#safe-button");
+  const helpButton = $("#help-button");
+  const awayButton = $("#away-button");
+  const ackButton = $("#ack-button");
+  const demo = Boolean(state.demoApi);
+  const live = incidentIsLive(state.incident);
+
+  if (state.incident?.status === "RESOLVED" && sameIncident && state.ackResponse) {
+    const when = formatAckTime(state.ackAt);
+    box.classList.remove("hidden");
+    box.textContent = when
+      ? `คุณตอบรับแล้ว · ${when} น. — หน้าเคลียร์เหตุแบบเต็มยังไม่เปิดใช้`
+      : "คุณตอบรับแล้วในรอบนี้";
+    ackButton.disabled = true;
+    if (demo) {
+      safeButton.classList.add("hidden");
+      helpButton.classList.add("hidden");
+      awayButton.classList.add("hidden");
+    }
     return;
   }
+
+  if (!state.incident || !live || !sameIncident || !state.ackResponse) {
+    box.classList.add("hidden");
+    box.textContent = "";
+    ackButton.disabled = false;
+    ackButton.textContent = "รับทราบ";
+    ackButton.classList.remove("hidden");
+    if (demo) {
+      safeButton.classList.add("hidden");
+      helpButton.classList.add("hidden");
+      awayButton.classList.add("hidden");
+    } else {
+      helpButton.classList.remove("hidden");
+    }
+    return;
+  }
+
   box.classList.remove("hidden");
+  if (demo) {
+    ackButton.classList.add("hidden");
+    ackButton.disabled = false;
+    safeButton.classList.remove("hidden");
+    helpButton.classList.remove("hidden");
+    awayButton.classList.remove("hidden");
+    safeButton.disabled = false;
+    helpButton.disabled = false;
+    awayButton.disabled = false;
+    helpButton.textContent = "ต้องการช่วยเหลือ";
+    safeButton.classList.toggle("is-active", state.ackResponse === "SAFE");
+    helpButton.classList.toggle("is-active", state.ackResponse === "NEED_HELP");
+    awayButton.classList.toggle("is-active", state.ackResponse === "AWAY");
+    if (state.ackResponse === "NEED_HELP") box.textContent = "สถานะปัจจุบัน: ต้องการช่วยเหลือ — กดเปลี่ยนได้ตลอดจนกว่าจะยุติ";
+    else if (state.ackResponse === "SAFE") box.textContent = "สถานะปัจจุบัน: ปลอดภัย — กดเปลี่ยนได้ตลอดจนกว่าจะยุติ";
+    else if (state.ackResponse === "AWAY") box.textContent = "สถานะปัจจุบัน: ไม่อยู่ในพื้นที่ — ไม่ใช่ผู้ที่ไม่ตอบ";
+    else box.textContent = "รับทราบแล้ว — เลือก ปลอดภัย / ต้องการช่วยเหลือ / ไม่อยู่ในพื้นที่";
+    return;
+  }
+
   if (state.ackResponse === "NEED_HELP") {
     box.textContent = "ส่งคำขอความช่วยเหลือแล้ว — ศูนย์ควบคุมได้รับเรื่อง";
-    $("#ack-button").textContent = "รับทราบแล้ว";
+    ackButton.textContent = "รับทราบแล้ว";
   } else {
     box.textContent = "รับทราบแล้ว";
-    $("#ack-button").textContent = "รับทราบแล้ว";
-    $("#ack-button").disabled = true;
+    ackButton.textContent = "รับทราบแล้ว";
+    ackButton.disabled = true;
   }
 }
 
 function renderIncident(incident) {
   state.incident = incident;
   const panel = $("#incident-panel");
-  const actions = $("#incident-actions");
+  const response = $("#incident-response");
   panel.classList.remove("idle", "active", "resolved", "pending");
   const live = incidentIsLive(incident);
   document.body.classList.toggle("drill-live", live);
@@ -264,7 +410,7 @@ function renderIncident(incident) {
     $("#incident-title").textContent = "ขณะนี้ไม่มีการฝึกซ้อม";
     $("#incident-instruction").textContent = "ระบบเชื่อมต่อกับศูนย์ควบคุมแล้ว";
     $("#incident-meta").textContent = "";
-    actions.classList.add("hidden");
+    response.classList.add("hidden");
     $("#commander-start")?.classList.remove("hidden");
     $("#commander-end")?.classList.add("hidden");
     const heading = $("#commander-heading");
@@ -272,7 +418,9 @@ function renderIncident(incident) {
     $("#dashboard-empty")?.classList.remove("hidden");
     state.ackResponse = null;
     state.ackedIncidentId = null;
+    state.ackAt = null;
     renderAckStatus();
+    renderRecipientGuidance(null);
     return;
   }
   const resolved = incident.status === "RESOLVED";
@@ -289,12 +437,14 @@ function renderIncident(incident) {
     ? "กรุณารอคำแนะนำจากโรงเรียนก่อนกลับเข้าสู่กิจกรรมตามปกติ"
     : incident.instruction;
   $("#incident-meta").textContent = `รหัส ${incident.id} · พื้นที่ ${incident.zone} · เวอร์ชัน ${incident.version}`;
-  actions.classList.toggle("hidden", resolved);
+  response.classList.toggle("hidden", resolved);
   if (state.ackedIncidentId !== incident.id) {
     state.ackResponse = null;
     state.ackedIncidentId = null;
+    state.ackAt = null;
   }
   renderAckStatus();
+  renderRecipientGuidance(incident);
   if (state.me?.role === "commander") {
     $("#commander-start")?.classList.toggle("hidden", !resolved);
     $("#commander-end")?.classList.toggle("hidden", resolved);
@@ -309,6 +459,16 @@ function renderIncident(incident) {
 }
 
 function connectRealtime() {
+  if (state.demoApi) {
+    setConnectionStatus(true);
+    state.demoApi.subscribe((message) => {
+      if (message?.type === "incident_state") {
+        renderIncident(message.incident);
+        if (state.me?.role === "commander") refreshDashboard();
+      }
+    });
+    return;
+  }
   if (state.socket && state.socket.readyState < 2) return;
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(`${protocol}//${location.host}/api/ws`);
@@ -362,9 +522,18 @@ async function submitReport(event) {
 async function acknowledge(response) {
   if (!state.incident || state.incident.status === "RESOLVED") return;
   const incidentId = state.incident.id;
-  $("#ack-button").disabled = response === "ACK";
+  const previous = {
+    response: state.ackResponse,
+    id: state.ackedIncidentId,
+    at: state.ackAt,
+  };
+  if (response === "ACK") $("#ack-button").disabled = true;
+  state.ackResponse = response;
+  state.ackedIncidentId = incidentId;
+  state.ackAt = new Date().toISOString();
+  renderAckStatus();
   try {
-    await api("/api/acknowledgements", {
+    const result = await api("/api/acknowledgements", {
       method: "POST",
       body: JSON.stringify({
         incidentId,
@@ -372,12 +541,14 @@ async function acknowledge(response) {
         zone: $("#device-zone").value,
       }),
     });
-    state.ackResponse = response;
-    state.ackedIncidentId = incidentId;
-    renderAckStatus();
-    toast(response === "ACK" ? "บันทึกการรับทราบแล้ว" : "ส่งคำขอความช่วยเหลือไปยังศูนย์ควบคุมแล้ว");
+    if (result?.createdAt) state.ackAt = result.createdAt;
+    toast(STATUS_TOAST[response] || "บันทึกสถานะแล้ว");
   } catch (error) {
+    state.ackResponse = previous.response;
+    state.ackedIncidentId = previous.id;
+    state.ackAt = previous.at;
     $("#ack-button").disabled = false;
+    renderAckStatus();
     toast(error.message);
   }
 }
@@ -471,6 +642,7 @@ async function activateDrill() {
         type: $("#drill-type").value,
         zone: $("#drill-zone").value,
         instruction: $("#drill-instruction").value,
+        ...(state.selectedTemplateId ? { templateId: state.selectedTemplateId } : {}),
       }),
     });
     renderIncident(result.incident);
@@ -512,8 +684,105 @@ async function refreshDashboard() {
     $("#metric-ack").textContent = countStatus(result.acknowledgement?.results, "ACK");
     $("#metric-help").textContent = countStatus(result.acknowledgement?.results, "NEED_HELP");
     renderIncident(result.incident);
+    renderDemoCommandCenter(result);
   } catch (error) {
     toast(error.message);
+  }
+}
+
+function renderZoneGroups(selector, groups) {
+  const root = $(selector);
+  if (!root) return;
+  if (!groups?.length) {
+    root.replaceChildren();
+    return;
+  }
+  root.replaceChildren(
+    ...groups.map((group) => {
+      const wrap = document.createElement("div");
+      wrap.className = "zone-group";
+      const heading = document.createElement("h3");
+      const name = document.createElement("span");
+      name.textContent = group.zoneName;
+      const count = document.createElement("span");
+      count.textContent = `${group.count} คน`;
+      heading.append(name, count);
+      const list = document.createElement("ul");
+      for (const person of group.people) {
+        const item = document.createElement("li");
+        const who = document.createElement("span");
+        who.textContent = `${person.name} · ${person.role}`;
+        const room = document.createElement("span");
+        room.className = "room";
+        room.textContent = person.room;
+        item.append(who, room);
+        list.append(item);
+      }
+      wrap.append(heading, list);
+      return wrap;
+    }),
+  );
+}
+
+function renderDemoCommandCenter(result) {
+  if (!state.demoApi || !result?.rollup) return;
+  const rollup = result.rollup;
+  const format = (value) => Number(value || 0).toLocaleString("th-TH");
+  $("#metric-ack").textContent = format(rollup.responded);
+  $("#metric-help").textContent = format(rollup.needHelp);
+  $("#metric-safe").textContent = format(rollup.safe);
+  $("#metric-away").textContent = format(rollup.away);
+  $("#metric-silent").textContent = format(rollup.silent);
+  $("#metric-ack-rate").textContent = `${Math.round(rollup.ackRate * 100)}%`;
+
+  const live = incidentIsLive(result.incident);
+  $("#nonresponder-panel").classList.toggle("hidden", !live);
+  $("#nonresponder-count").textContent = format(rollup.silent);
+  renderZoneGroups("#nonresponder-zones", rollup.nonRespondersByZone);
+  $("#nonresponder-empty").classList.toggle("hidden", rollup.silent > 0);
+
+  const after = result.afterAction;
+  $("#afteraction-panel").classList.toggle("hidden", !after);
+  if (!after) return;
+  $("#afteraction-title").textContent = `${after.title} · ${after.durationMinutes} นาที`;
+  $("#afteraction-rate").textContent = `${after.ackPercent}%`;
+  $("#afteraction-responded").textContent = `${format(after.responded)} / ${format(after.totalPeople)}`;
+  $("#afteraction-safe").textContent = format(after.safe);
+  $("#afteraction-help").textContent = format(after.needHelp);
+  $("#afteraction-away").textContent = format(after.away);
+  renderZoneGroups("#afteraction-silent", after.nonRespondersByZone);
+}
+
+function renderDrillTemplates() {
+  const root = $("#drill-templates");
+  if (!root || !state.demoApi) return;
+  const templates = state.config?.templates || [];
+  root.replaceChildren(
+    ...templates.map((template) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "template-card";
+      button.dataset.template = template.id;
+      const title = document.createElement("span");
+      title.textContent = template.labelTh;
+      const hint = document.createElement("small");
+      hint.textContent = "นี่คือการฝึกซ้อม · DRILL";
+      button.append(title, hint);
+      button.addEventListener("click", () => selectDrillTemplate(template));
+      return button;
+    }),
+  );
+  const current = templates.find((item) => item.id === state.selectedTemplateId) || templates[0];
+  if (current) selectDrillTemplate(current);
+}
+
+function selectDrillTemplate(template) {
+  state.selectedTemplateId = template.id;
+  const typeSelect = $("#drill-type");
+  if (typeSelect.querySelector(`option[value="${template.type}"]`)) typeSelect.value = template.type;
+  $("#drill-instruction").value = template.instruction;
+  for (const button of document.querySelectorAll(".template-card")) {
+    button.classList.toggle("is-active", button.dataset.template === template.id);
   }
 }
 
@@ -732,19 +1001,69 @@ function setView(view) {
 }
 
 async function logout() {
+  if (state.demoApi) {
+    location.href = "/";
+    return;
+  }
   await fetch("/auth/logout", { method: "POST", credentials: "same-origin" });
   location.reload();
+}
+
+function applyDemoIdentity(me) {
+  state.me = me;
+  state.ackResponse = me.ackResponse || null;
+  state.ackedIncidentId = me.ackedIncidentId || null;
+  state.ackAt = me.ackAt || null;
+  const roleLabel = ROLE_LABEL[me.role] || me.role;
+  $("#account-label").textContent = `${me.displayName || me.email} · ${roleLabel}`;
+  for (const button of document.querySelectorAll(".demo-id")) {
+    button.classList.toggle("is-active", button.dataset.identity === me.identityId);
+  }
+  $("#view-switch").classList.remove("hidden");
+  if (me.role === "commander") setView("admin");
+  else setView("user");
+  renderAckStatus();
+}
+
+async function switchDemoIdentity(id) {
+  try {
+    const me = await api("/api/demo/identity", { method: "POST", body: JSON.stringify({ id }) });
+    applyDemoIdentity(me);
+    const active = await api("/api/incidents/active");
+    renderIncident(active.incident);
+    if (me.role === "commander") await refreshDashboard();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function resetDemo() {
+  try {
+    await api("/api/demo/reset", { method: "POST", body: "{}" });
+    toast("รีเซ็ตข้อมูลจำลองแล้ว");
+    location.reload();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 async function init() {
   showLoginErrorFromUrl();
   $("#login-panel").classList.add("hidden");
+  if (isDemoMode()) {
+    const { createDemoApi } = await import("/demo-mock.js");
+    state.demoApi = createDemoApi({ storage: window.sessionStorage });
+    document.body.classList.add("demo-mode");
+    $("#logout-button").textContent = "ออกจากโหมดสาธิต";
+    $("#help-button").textContent = "ต้องการช่วยเหลือ";
+  }
   try {
     state.config = await api("/api/config");
     $("#school-name").textContent = state.config.schoolName;
     // แสดงโดเมนที่อนุญาตจากค่าจริงของเซิร์ฟเวอร์ ไม่ฝังไว้ในหน้าเว็บ
     $("#allowed-domain").textContent = "@" + state.config.googleDomain;
     fillZones();
+    if (state.demoApi) renderDrillTemplates();
   } catch (error) {
     showBootError(error.message || "เชื่อมต่อระบบไม่ได้");
     return;
@@ -768,23 +1087,27 @@ async function init() {
   $("#login-panel").classList.add("hidden");
   $("#app-panel").classList.remove("hidden");
   $("#logout-button").classList.remove("hidden");
-  const roleLabel = ROLE_LABEL[state.me.role] || state.me.role;
-  $("#account-label").textContent = `${state.me.email} · ${roleLabel}`;
-  if (state.me.role === "commander") {
-    $("#view-switch").classList.remove("hidden");
-    setView("admin");
+  if (state.demoApi) {
+    applyDemoIdentity(state.me);
   } else {
-    $("#admin-view").remove();
+    const roleLabel = ROLE_LABEL[state.me.role] || state.me.role;
+    $("#account-label").textContent = `${state.me.email} · ${roleLabel}`;
+    if (state.me.role === "commander") {
+      $("#view-switch").classList.remove("hidden");
+      setView("admin");
+    } else {
+      $("#admin-view").remove();
+    }
   }
 
-  if ("serviceWorker" in navigator) await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-  await refreshReadiness();
+  if (!state.demoApi && "serviceWorker" in navigator) await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  if (!state.demoApi) await refreshReadiness();
   const active = await api("/api/incidents/active");
   renderIncident(active.incident);
   connectRealtime();
   if (state.me.role === "commander") {
     await refreshDashboard();
-    await refreshRoster();
+    if (!state.demoApi) await refreshRoster();
   }
 }
 
@@ -798,7 +1121,9 @@ $("#invite-token").addEventListener("paste", (event) => {
   $("#invite-token").value = text.replace(/\s+/g, "");
 });
 $("#ack-button").addEventListener("click", () => acknowledge("ACK"));
+$("#safe-button").addEventListener("click", () => acknowledge("SAFE"));
 $("#help-button").addEventListener("click", () => acknowledge("NEED_HELP"));
+$("#away-button").addEventListener("click", () => acknowledge("AWAY"));
 $("#logout-button").addEventListener("click", logout);
 $("#update-now").addEventListener("click", applyUpdate);
 $("#boot-retry").addEventListener("click", () => location.reload());
@@ -834,6 +1159,11 @@ $("#open-guide").addEventListener("click", openInstallGuide);
 $("#guide-close").addEventListener("click", closeInstallGuide);
 $("#guide-tab-ios").addEventListener("click", () => setGuideTab("ios"));
 $("#guide-tab-android").addEventListener("click", () => setGuideTab("android"));
+$("#demo-reset").addEventListener("click", resetDemo);
+$("#demo-identities").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-identity]");
+  if (button) switchDemoIdentity(button.dataset.identity);
+});
 
 const holdButton = $("#activate-drill");
 holdButton.addEventListener("pointerdown", beginHold);
