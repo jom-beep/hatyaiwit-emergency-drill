@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" role="img" aria-labelledby="campusTitle campusDesc">
+  <title id="campusTitle">A1B#@#5"3%- · #51# 191</title>
+  <desc id="campusDesc">1-22# 13 *2!5,2 B#-2+2# A%0#09B#@#5" *3+#16I-!#2"4</desc>
+  <defs>
+    <pattern id="grass" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#d8ead4"/>
+      <path d="M0 16L16 0" stroke="#c9dfc3" stroke-width="1"/>
+    </pattern>
+    <pattern id="court" width="28" height="28" patternUnits="userSpaceOnUse">
+      <rect width="28" height="28" fill="#efe6d2"/>
+      <path d="M0 28H28M28 0V28" stroke="#e4d7b8" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1000" height="640" rx="28" fill="#9bb48c"/>
+  <rect x="18" y="18" width="964" height="604" rx="22" fill="url(#grass)" stroke="#6f8a66" stroke-width="3"/>
+
+  <rect x="80" y="86" width="840" height="70" rx="8" fill="#cfd6cf"/>
+  <text x="500" y="128" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" font-weight="700" fill="#3d4a3c">+I2B#@#5"</text>
+
+  <rect x="430" y="36" width="140" height="46" rx="8" fill="#5c4030"/>
+  <text x="500" y="66" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" font-weight="800" fill="#fff">#09C+H</text>
+
+  <g>
+    <rect x="70" y="190" width="250" height="180" rx="14" fill="#f4f0e6" stroke="#8b1e2d" stroke-width="4"/>
+    <rect x="88" y="208" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="162" y="208" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="236" y="208" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="88" y="268" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="162" y="268" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="236" y="268" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <text x="195" y="348" text-anchor="middle" font-family="system-ui, sans-serif" font-size="22" font-weight="800" fill="#8b1e2d">-22# 1</text>
+  </g>
+
+  <g>
+    <rect x="375" y="190" width="250" height="180" rx="14" fill="#f4f0e6" stroke="#8b1e2d" stroke-width="4"/>
+    <rect x="393" y="208" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="467" y="208" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="541" y="208" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="393" y="268" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="467" y="268" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="541" y="268" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <text x="500" y="348" text-anchor="middle" font-family="system-ui, sans-serif" font-size="22" font-weight="800" fill="#8b1e2d">-22# 2</text>
+  </g>
+
+  <g>
+    <rect x="680" y="190" width="250" height="180" rx="14" fill="#f4f0e6" stroke="#8b1e2d" stroke-width="4"/>
+    <rect x="698" y="208" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="772" y="208" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="846" y="208" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="698" y="268" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="772" y="268" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <rect x="846" y="268" width="66" height="48" rx="6" fill="#d9e6f4"/>
+    <text x="805" y="348" text-anchor="middle" font-family="system-ui, sans-serif" font-size="22" font-weight="800" fill="#8b1e2d">-22# 3</text>
+  </g>
+
+  <rect x="70" y="400" width="555" height="28" rx="6" fill="#d7d2c4"/>
+  <text x="347" y="420" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#5a5346">2@4%2</text>
+
+  <g>
+    <rect x="70" y="448" width="360" height="150" rx="14" fill="url(#court)" stroke="#6f8a66" stroke-width="3"/>
+    <ellipse cx="250" cy="523" rx="88" ry="48" fill="none" stroke="#7a8f55" stroke-width="3"/>
+    <text x="250" y="530" text-anchor="middle" font-family="system-ui, sans-serif" font-size="22" font-weight="800" fill="#3d4a3c">*2!5,2</text>
+  </g>
+
+  <g>
+    <rect x="460" y="448" width="200" height="150" rx="14" fill="#f7efe0" stroke="#b86207" stroke-width="3"/>
+    <rect x="484" y="472" width="152" height="56" rx="8" fill="#f3d27a"/>
+    <text x="560" y="560" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" font-weight="800" fill="#8a4b00">B#-2+2#</text>
+  </g>
+
+  <g>
+    <rect x="690" y="448" width="240" height="150" rx="14" fill="#e8eef6" stroke="#2457a6" stroke-width="3"/>
+    <text x="810" y="530" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" font-weight="800" fill="#2457a6">%24##!</text>
+  </g>
+
+  <text x="500" y="612" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#3d4a3c">5H7-2#6I-! · DRILL · A13%- D!HC
+H GPS #4</text>
+</svg>

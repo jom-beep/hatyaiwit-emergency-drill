@@ -59,6 +59,16 @@ const RECIPIENT_GUIDANCE = {
       "รอการอัปเดตจากศูนย์ควบคุม",
     ],
   },
+  TRIJAK: {
+    title: "ขณะฝึกซ้อมกราดยิง / ตรีจักร 191",
+    steps: [
+      "นี่คือการฝึกซ้อม · DRILL — ไม่ใช่เหตุจริง",
+      "ล็อกประตู ปิดไฟ เงียบ และอยู่ต่ำในจุดกำบัง",
+      "ห้ามเปิดประตูหรือออกนอกห้องจนกว่าศูนย์ควบคุมจะประกาศยุติ",
+      "ปักหมุดบนแผนที่หากเห็นตำแหน่งเหตุ (จำลองในโหมดสาธิต)",
+      "ห้ามใช้แอปนี้แทนเสียงตามสาย วิทยุสื่อสาร หรือโทร 191",
+    ],
+  },
 };
 
 const STATUS_TOAST = {
@@ -99,6 +109,9 @@ const state = {
   demoApi: null,
   selectedTemplateId: null,
   lastInstructionKey: null,
+  map: { pins: [], redZone: null },
+  adminQueue: null,
+  queueTimer: null,
 };
 
 function isDemoMode() {
@@ -331,6 +344,10 @@ function isLockdownLike(type) {
   return type === "LOCKDOWN";
 }
 
+function isTrijak191(incident) {
+  return incident?.templateId === "TRIJAK_191";
+}
+
 function readSilentMode(incidentType) {
   try {
     const raw = sessionStorage.getItem(SILENT_MODE_STORAGE_KEY);
@@ -397,7 +414,9 @@ function renderRecipientGuidance(incident) {
     return;
   }
   const catalog = state.config?.recipientGuidance || RECIPIENT_GUIDANCE;
-  const guidance = catalog[incident.type] || RECIPIENT_GUIDANCE.INFORMATION;
+  const guidance = isTrijak191(incident)
+    ? catalog.TRIJAK || RECIPIENT_GUIDANCE.TRIJAK || catalog.LOCKDOWN || RECIPIENT_GUIDANCE.LOCKDOWN
+    : catalog[incident.type] || RECIPIENT_GUIDANCE.INFORMATION;
   title.textContent = guidance.title;
   list.replaceChildren(
     ...guidance.steps.map((step) => {
@@ -606,6 +625,8 @@ function renderIncident(incident, options = {}) {
     renderCommandUpdates(null);
     renderSilentLockdown(null);
     renderAllClear(null);
+    renderTrijakMap(null);
+    renderAdminQueue(null);
     return;
   }
   const resolved = incident.status === "RESOLVED";
@@ -643,6 +664,8 @@ function renderIncident(incident, options = {}) {
   renderCommandUpdates(incident, options);
   renderSilentLockdown(incident);
   renderAllClear(incident);
+  renderTrijakMap(incident);
+  renderAdminQueue(incident);
   if (state.me?.role === "commander") {
     $("#commander-start")?.classList.toggle("hidden", !resolved);
     $("#commander-end")?.classList.toggle("hidden", resolved);
@@ -656,11 +679,212 @@ function renderIncident(incident, options = {}) {
   }
 }
 
+function applyMapPayload(payload = {}) {
+  if (payload.map) state.map = payload.map;
+  if (payload.adminQueue) state.adminQueue = payload.adminQueue;
+}
+
+function formatPinTime(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+function renderTrijakMap(incident) {
+  const panel = $("#trijak-map-panel");
+  if (!panel) return;
+  const live = Boolean(state.demoApi && incidentIsLive(incident) && isTrijak191(incident));
+  panel.classList.toggle("hidden", !live);
+  if (!live) {
+    $("#map-markers")?.replaceChildren();
+    $("#map-pin-list")?.replaceChildren();
+    return;
+  }
+  const map = state.map || { pins: [], redZone: null };
+  const queue = state.adminQueue;
+  const isCommander = state.me?.role === "commander";
+  const isController = Boolean(queue?.controllerId && queue.controllerId === state.me?.identityId);
+  const hint = $("#map-hint");
+  if (isCommander && isController) {
+    hint.textContent = "คุณเป็นผู้ควบคุม — แตะแผนที่เพื่อวางหรือย้ายเขตแดง";
+  } else if (isCommander) {
+    hint.textContent = queue?.controllerName
+      ? `${queue.controllerName} กำลังควบคุมเขตแดง — ดูแผนที่ได้อย่างเดียว`
+      : "รอคิวยืนยันควบคุม 20 วินาทีก่อน จึงจะวางเขตแดงได้";
+  } else {
+    hint.textContent = "แตะแผนที่เพื่อปักหมุดรายงานตำแหน่งเหตุ (จำลอง) — แตะอีกครั้งเพื่อย้ายหมุด";
+  }
+
+  const markers = $("#map-markers");
+  const nodes = [];
+  if (map.redZone) {
+    const zone = document.createElement("div");
+    zone.className = "map-red-zone";
+    zone.style.left = `${map.redZone.x}%`;
+    zone.style.top = `${map.redZone.y}%`;
+    const size = Math.max(48, (map.redZone.radius || 10) * 6);
+    zone.style.width = `${size}px`;
+    zone.style.height = `${size}px`;
+    zone.title = `เขตแดง · ย้ายเมื่อ ${formatPinTime(map.redZone.movedAt)} น.`;
+    nodes.push(zone);
+  }
+  for (const pin of map.pins || []) {
+    const marker = document.createElement("div");
+    marker.className = "map-pin";
+    marker.style.left = `${pin.x}%`;
+    marker.style.top = `${pin.y}%`;
+    const dot = document.createElement("i");
+    const label = document.createElement("span");
+    label.textContent = `${pin.label} · ${formatPinTime(pin.plantedAt)} น.`;
+    marker.append(dot, label);
+    nodes.push(marker);
+  }
+  markers.replaceChildren(...nodes);
+
+  const list = $("#map-pin-list");
+  if (!map.pins?.length && !map.redZone) {
+    list.replaceChildren();
+    return;
+  }
+  const items = [];
+  if (map.redZone) {
+    const row = document.createElement("li");
+    row.textContent = `เขตแดง · ย้ายโดย ${map.redZone.movedBy || "ผู้ประกาศ"} เวลา ${formatPinTime(map.redZone.movedAt)} น.`;
+    items.push(row);
+  }
+  for (const pin of map.pins || []) {
+    const row = document.createElement("li");
+    row.textContent = `${pin.label} ปักหมุดเวลา ${formatPinTime(pin.plantedAt)} น.`;
+    items.push(row);
+  }
+  list.replaceChildren(...items);
+}
+
+function renderAdminQueue(incident) {
+  const panel = $("#admin-queue-panel");
+  if (!panel) return;
+  const live = Boolean(state.demoApi && incidentIsLive(incident) && isTrijak191(incident) && state.me?.role === "commander");
+  panel.classList.toggle("hidden", !live);
+  if (!live) {
+    if (state.queueTimer) {
+      window.clearInterval(state.queueTimer);
+      state.queueTimer = null;
+    }
+    return;
+  }
+  if (!state.queueTimer) {
+    state.queueTimer = window.setInterval(() => {
+      refreshTrijakRealtime({ silent: true });
+    }, 400);
+  }
+  const queue = state.adminQueue;
+  const list = $("#admin-queue-list");
+  const timer = $("#admin-queue-timer");
+  const status = $("#admin-queue-status");
+  const button = $("#confirm-control");
+  if (!queue) {
+    list.replaceChildren();
+    return;
+  }
+  list.replaceChildren(
+    ...queue.admins.map((admin) => {
+      const item = document.createElement("li");
+      item.classList.add(`is-${admin.state}`);
+      if (admin.id === state.me?.identityId) item.classList.add("is-you");
+      const order = document.createElement("span");
+      order.className = "order";
+      order.textContent = `#${admin.queueOrder}`;
+      const name = document.createElement("span");
+      name.textContent = admin.displayName;
+      item.append(order, name);
+      return item;
+    }),
+  );
+  if (queue.controllerId) {
+    timer.textContent = "มีผู้ควบคุมแล้ว";
+    status.textContent = `${queue.controllerName || "ผู้ประกาศ"} เป็นผู้ควบคุมเขตแดง — การยุติยังต้องยืนยัน 2 คน`;
+    button.disabled = true;
+    button.textContent = "ยืนยันควบคุมแล้ว";
+  } else {
+    const seconds = Math.ceil((queue.remainingMs || 0) / 1000);
+    timer.textContent = queue.exhausted ? "ครบคิวแล้ว" : `เหลือ ${seconds} วินาที`;
+    const current = queue.currentAdmin;
+    const yours = current?.id === state.me?.identityId;
+    status.textContent = yours
+      ? `${current.displayName} (คุณ) ต้องยืนยันควบคุมภายใน ${seconds} วินาที`
+      : `รอ ${current?.displayName || "ผู้ประกาศ"} ยืนยันควบคุม — สลับบทบาทด้านบนถ้าต้องการกดแทน`;
+    button.disabled = !yours;
+    button.textContent = yours ? "ยืนยันควบคุมการฝึกซ้อมนี้" : `รอคิวของ ${current?.displayName || "ผู้ประกาศ"}`;
+  }
+}
+
+async function refreshTrijakRealtime(options = {}) {
+  if (!state.demoApi || !isTrijak191(state.incident) || !incidentIsLive(state.incident)) return;
+  try {
+    const result = await api("/api/demo/map");
+    applyMapPayload(result);
+    renderTrijakMap(state.incident);
+    renderAdminQueue(state.incident);
+  } catch (error) {
+    if (!options.silent) toast(error.message);
+  }
+}
+
+async function handleCampusMapClick(event) {
+  if (!state.demoApi || !isTrijak191(state.incident) || !incidentIsLive(state.incident)) return;
+  const map = $("#campus-map");
+  const rect = map.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const x = ((event.clientX - rect.left) / rect.width) * 100;
+  const y = ((event.clientY - rect.top) / rect.height) * 100;
+  const isCommander = state.me?.role === "commander";
+  try {
+    if (isCommander) {
+      const result = await api("/api/demo/red-zone", {
+        method: "POST",
+        body: JSON.stringify({ x, y }),
+      });
+      applyMapPayload(result);
+      renderTrijakMap(state.incident);
+      toast("วางเขตแดงแล้ว");
+    } else {
+      const result = await api("/api/demo/map-pin", {
+        method: "POST",
+        body: JSON.stringify({ x, y }),
+      });
+      applyMapPayload(result);
+      renderTrijakMap(state.incident);
+      toast("ปักหมุดรายงานแล้ว");
+    }
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function confirmControl() {
+  const button = $("#confirm-control");
+  if (button) button.disabled = true;
+  try {
+    const result = await api("/api/demo/confirm-control", { method: "POST", body: "{}" });
+    applyMapPayload(result);
+    renderAdminQueue(state.incident);
+    toast("คุณเป็นผู้ควบคุมการฝึกซ้อมตรีจักร 191 แล้ว");
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    renderAdminQueue(state.incident);
+  }
+}
+
 function connectRealtime() {
   if (state.demoApi) {
     setConnectionStatus(true);
     state.demoApi.subscribe((message) => {
       if (message?.type === "incident_state") {
+        applyMapPayload(message);
         renderIncident(message.incident, { fromLive: true });
         if (state.me?.role === "commander") refreshDashboard();
       }
@@ -850,6 +1074,7 @@ async function activateDrill() {
         ...(state.selectedTemplateId ? { templateId: state.selectedTemplateId } : {}),
       }),
     });
+    applyMapPayload(result);
     renderIncident(result.incident);
     toast("เริ่มการฝึกซ้อมและส่งเข้าคิวแจ้งเตือนแล้ว");
   } catch (error) {
@@ -862,10 +1087,11 @@ async function resolveDrill() {
   button.disabled = true;
   try {
     const result = await api("/api/incidents/resolve", { method: "POST", body: "{}" });
+    applyMapPayload(result);
     renderIncident(result.incident);
     toast(
       result.incident.status === "RESOLVED"
-        ? "ยุติการฝึกซ้อมแล้ว"
+        ? "ยุติการฝึกซ้อมแล้ว — ล้างหมุดและเขตแดงแล้ว"
         : `บันทึกการยืนยันแล้ว ต้องการอีก ${result.approvalsRequired} คน`,
     );
   } catch (error) {
@@ -904,6 +1130,7 @@ async function refreshDashboard() {
   if (state.me?.role !== "commander") return;
   try {
     const result = await api("/api/dashboard");
+    applyMapPayload(result);
     $("#metric-ready").textContent = Number(result.devices?.ready || 0).toLocaleString("th-TH");
     $("#metric-sent").textContent = countStatus(result.delivery?.results, "SENT");
     $("#metric-ack").textContent = countStatus(result.acknowledgement?.results, "ACK");
@@ -1256,6 +1483,7 @@ async function switchDemoIdentity(id) {
     const me = await api("/api/demo/identity", { method: "POST", body: JSON.stringify({ id }) });
     applyDemoIdentity(me);
     const active = await api("/api/incidents/active");
+    applyMapPayload(active);
     renderIncident(active.incident);
     if (me.role === "commander") await refreshDashboard();
   } catch (error) {
@@ -1278,7 +1506,12 @@ async function init() {
   $("#login-panel").classList.add("hidden");
   if (isDemoMode()) {
     const { createDemoApi } = await import("/demo-mock.js");
-    state.demoApi = createDemoApi({ storage: window.sessionStorage });
+    state.demoApi = createDemoApi({
+      storage: window.sessionStorage,
+      sharedStorage: window.localStorage,
+      seedTemplateId: "TRIJAK_191",
+      broadcast: "BroadcastChannel" in window ? new BroadcastChannel("hyw-demo-v1") : null,
+    });
     document.body.classList.add("demo-mode");
     $("#logout-button").textContent = "ออกจากโหมดสาธิต";
     $("#help-button").textContent = "ต้องการช่วยเหลือ";
@@ -1329,6 +1562,7 @@ async function init() {
   if (!state.demoApi && "serviceWorker" in navigator) await navigator.serviceWorker.register("/sw.js", { scope: "/" });
   if (!state.demoApi) await refreshReadiness();
   const active = await api("/api/incidents/active");
+  applyMapPayload(active);
   renderIncident(active.incident);
   connectRealtime();
   if (state.me.role === "commander") {
@@ -1400,6 +1634,8 @@ $("#demo-identities").addEventListener("click", (event) => {
   const button = event.target.closest("[data-identity]");
   if (button) switchDemoIdentity(button.dataset.identity);
 });
+$("#campus-map")?.addEventListener("click", handleCampusMapClick);
+$("#confirm-control")?.addEventListener("click", confirmControl);
 
 const holdButton = $("#activate-drill");
 holdButton.addEventListener("pointerdown", beginHold);
