@@ -53,6 +53,27 @@ describe("demo mode must not weaken production auth", () => {
     expect(html).not.toContain("ของที่ยังไม่ทำในรอบนี้");
   });
 
+  it("wires the ตรีจักร 191 demo map, red zone, and 20s admin queue", () => {
+    expect(html).toContain("ตรีจักร 191");
+    expect(html).toContain("campus-map");
+    expect(html).toContain('width="1000" height="640"');
+    const campusMap = readFileSync(new URL("../public/campus-map.svg", import.meta.url), "utf8");
+    expect(campusMap).toContain('width="1000" height="640"');
+    expect(campusMap).toContain("อาคาร 1");
+    expect(campusMap).toContain("ตรีจักร 191");
+    expect(campusMap.includes("\u0000") || /[\u0000-\u0008]/.test(campusMap)).toBe(false);
+    expect(html).toContain("ยืนยันควบคุมภายใน 20 วินาที");
+    expect(html).toContain('data-identity="commander5"');
+    expect(html).toContain("เขตแดง");
+    expect(app).toContain("/api/demo/map-pin");
+    expect(app).toContain("/api/demo/red-zone");
+    expect(app).toContain("/api/demo/confirm-control");
+    expect(app).toContain("seedTemplateId: \"TRIJAK_191\"");
+    expect(app).toContain("sharedStorage: window.localStorage");
+    expect(app).toContain("BroadcastChannel");
+    expect(app).not.toMatch(/RESOLUTION_APPROVALS_REQUIRED = 1/);
+  });
+
   it("keeps the five mock walkthrough surfaces in the PWA shell", () => {
     expect(html).toContain("ผู้ที่ยังไม่กดรับทราบ");
     expect(html).toContain("After-action");

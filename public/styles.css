@@ -345,6 +345,60 @@ body.demo-mode { padding-bottom: 0; }
 .commander-update { margin: 16px 0 8px; padding: 14px; border-radius: 14px; background: #f8fafc; border: 1px solid var(--line); }
 .commander-update .button.wide { margin-top: 10px; }
 
+.demo-toolbar-note { margin: 0; width: 100%; font-size: 12px; font-weight: 600; color: #684d00; }
+.template-card[data-template="TRIJAK_191"].is-active { background: #fdeaec; border-color: var(--red); }
+.trijak-map-card { margin-top: 20px; border: 2px solid #c9a23a; }
+.campus-map {
+  position: relative; margin-top: 12px; border-radius: 16px; overflow: hidden;
+  border: 1px solid #c9a23a; background: #d8ead4; touch-action: manipulation; cursor: crosshair;
+  aspect-ratio: 1000 / 640; min-height: 220px;
+}
+.campus-map img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; }
+.map-markers { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.map-pin, .map-red-zone { position: absolute; pointer-events: none; transform: translate(-50%, -100%); }
+.map-pin {
+  z-index: 2; min-width: 72px; text-align: center;
+}
+.map-pin i {
+  display: block; width: 18px; height: 18px; margin: 0 auto -2px;
+  border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  background: var(--blue); border: 2px solid #fff; box-shadow: 0 4px 10px rgba(24, 32, 44, .28);
+}
+.map-pin span {
+  display: block; margin-top: 8px; padding: 3px 6px; border-radius: 8px;
+  background: rgba(255,255,255,.94); color: var(--ink); font-size: 11px; font-weight: 800;
+  box-shadow: 0 2px 8px rgba(24, 32, 44, .12); white-space: nowrap;
+}
+.map-red-zone {
+  z-index: 1; transform: translate(-50%, -50%);
+  border-radius: 50%; background: rgba(159, 36, 54, .38);
+  border: 4px solid #9f2436; box-shadow: 0 0 0 8px rgba(159, 36, 54, .16);
+}
+.map-red-zone::after {
+  content: "เขตแดง"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  color: #fff; font-size: 11px; font-weight: 800; text-shadow: 0 1px 2px rgba(0,0,0,.45);
+}
+.map-legend, .map-pin-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.map-legend { grid-template-columns: 1fr 1fr; font-size: 13px; font-weight: 700; color: var(--muted); }
+.map-legend li, .map-pin-list li { display: flex; align-items: center; gap: 8px; }
+.legend-pin, .legend-zone { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.legend-pin { background: var(--blue); }
+.legend-zone { background: #9f2436; }
+.map-pin-list li { font-size: 13px; font-weight: 700; color: var(--ink); }
+.admin-queue-list {
+  list-style: none; margin: 14px 0; padding: 0; display: grid; gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.admin-queue-list li {
+  border: 1px solid var(--line); border-radius: 12px; padding: 10px 8px; text-align: center;
+  background: #fff; font-size: 13px; font-weight: 700;
+}
+.admin-queue-list .order { display: block; color: var(--muted); font-size: 11px; }
+.admin-queue-list li.is-offered { border-color: var(--amber); background: #fff6e8; }
+.admin-queue-list li.is-controller { border-color: var(--green); background: #e8f5ee; }
+.admin-queue-list li.is-missed { opacity: .55; }
+.admin-queue-list li.is-you { box-shadow: inset 0 0 0 2px var(--blue); }
+
 @media (max-width: 760px) {
   .demo-ribbon { top: 32px; font-size: 12px; }
   .demo-toolbar { align-items: stretch; }
@@ -354,4 +408,5 @@ body.demo-mode { padding-bottom: 0; }
   .template-grid { grid-template-columns: 1fr; }
   .demo-metrics { grid-template-columns: 1fr 1fr; }
   .incident-panel { position: relative; }
+  .map-legend, .admin-queue-list { grid-template-columns: 1fr; }
 }

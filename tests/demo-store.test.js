@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADMIN_QUEUE_STEP_MS,
+  DEMO_ADMINS,
   DRILL_TEMPLATES,
   RECIPIENT_GUIDANCE,
   RECIPIENT_STATUSES,
   RESOLUTION_APPROVALS_REQUIRED,
   SILENT_MODE_STORAGE_KEY,
+  TRIJAK_TEMPLATE_ID,
   createDemoStore,
   isDemoLocation,
   isLockdownLike,
+  isTrijak191,
   latestInstructionUpdate,
   priorInstructionUpdates,
   readSilentMode,
@@ -30,10 +34,11 @@ describe("isDemoLocation", () => {
 });
 
 describe("drill templates", () => {
-  it("covers fire, earthquake, lockdown, and threat with Thai DRILL copy", () => {
+  it("covers ตรีจักร 191 plus fire, earthquake, lockdown, and threat with Thai DRILL copy", () => {
     const ids = DRILL_TEMPLATES.map((item) => item.id);
-    expect(ids).toEqual(["FIRE", "EARTHQUAKE", "LOCKDOWN", "THREAT"]);
+    expect(ids).toEqual(["TRIJAK_191", "FIRE", "EARTHQUAKE", "LOCKDOWN", "THREAT"]);
     expect(DRILL_TEMPLATES.map((item) => item.labelTh)).toEqual([
+      "กราดยิง / ตรีจักร 191",
       "อพยพเหตุเพลิงไหม้",
       "แผ่นดินไหว",
       "ล็อกดาวน์ / ปิดพื้นที่",
@@ -42,6 +47,8 @@ describe("drill templates", () => {
     for (const template of DRILL_TEMPLATES) {
       expect(template.instruction.startsWith("นี่คือการฝึกซ้อม")).toBe(true);
     }
+    expect(DRILL_TEMPLATES[0].id).toBe(TRIJAK_TEMPLATE_ID);
+    expect(DRILL_TEMPLATES[0].type).toBe("LOCKDOWN");
   });
 });
 
@@ -306,5 +313,122 @@ describe("resolution approvals stay at two commanders", () => {
     expect(store.getConfig().resolutionApprovalsRequired).toBe(2);
     store.resolveDrill();
     expect(store.getActive().status).toBe("RESOLUTION_PENDING");
+  });
+});
+
+function startTrijak(store) {
+  store.resolveDrill();
+  store.setIdentity("commander2");
+  store.resolveDrill();
+  store.setIdentity("commander");
+  const token = store.createActionToken().token;
+  return store.activateDrill({
+    actionToken: token,
+    mode: "DRILL",
+    templateId: TRIJAK_TEMPLATE_ID,
+    zone: "ALL",
+    instruction: DRILL_TEMPLATES.find((item) => item.id === TRIJAK_TEMPLATE_ID).instruction,
+  });
+}
+
+describe("ตรีจักร 191 map, red zone, and admin queue", () => {
+  it("keeps five demo admins and 20-second queue steps", () => {
+    expect(DEMO_ADMINS).toHaveLength(5);
+    expect(ADMIN_QUEUE_STEP_MS).toBe(20_000);
+    expect(createDemoStore({ now: () => NOW }).getConfig().adminQueueStepSeconds).toBe(20);
+  });
+
+  it("lets a recipient plant a timed pin and syncs it on the shared map", () => {
+    const store = createDemoStore({ now: () => NOW });
+    startTrijak(store);
+    expect(isTrijak191(store.getActive())).toBe(true);
+    expect(store.getActive().title).toContain("ตรีจักร 191");
+    expect(() => store.placeMapPin({ x: 32, y: 40 })).toThrow(/ครูผู้รับแจ้ง/);
+    store.setIdentity("member");
+    const planted = store.placeMapPin({ x: 32, y: 40 });
+    expect(planted.pin.label).toBe("ครูผู้รับแจ้ง");
+    expect(planted.pin.plantedAt).toBe(new Date(NOW).toISOString());
+    expect(store.getMap().pins).toHaveLength(1);
+    store.placeMapPin({ x: 70, y: 55 });
+    expect(store.getMap().pins).toHaveLength(1);
+    expect(store.getMap().pins[0].x).toBe(70);
+  });
+
+  it("rotates control after 20 seconds and only the controller may place the red zone", () => {
+    let clock = NOW;
+    const store = createDemoStore({ now: () => clock });
+    startTrijak(store);
+    expect(() => store.setRedZone({ x: 50, y: 50 })).toThrow(/ยืนยันควบคุม/);
+    store.setIdentity("commander2");
+    expect(() => store.confirmControl()).toThrow(/ยังไม่ถึงคิว/);
+    store.setIdentity("commander");
+    clock = NOW + ADMIN_QUEUE_STEP_MS;
+    const rotated = store.getAdminQueue();
+    expect(rotated.currentIndex).toBe(1);
+    expect(rotated.currentAdmin.id).toBe("commander2");
+    expect(rotated.admins[0].state).toBe("missed");
+    expect(rotated.admins[1].state).toBe("offered");
+    store.setIdentity("commander2");
+    const claimed = store.confirmControl();
+    expect(claimed.adminQueue.controllerId).toBe("commander2");
+    expect(claimed.adminQueue.admins[1].state).toBe("controller");
+    const zone = store.setRedZone({ x: 48, y: 36 });
+    expect(zone.redZone.movedBy).toBe("ผู้ประกาศ 2");
+    expect(store.getMap().redZone.x).toBe(48);
+    store.setIdentity("commander");
+    expect(() => store.setRedZone({ x: 10, y: 10 })).toThrow(/ยืนยันควบคุม/);
+  });
+
+  it("clears pins and the red zone on all-clear while still requiring two resolve approvals", () => {
+    const store = createDemoStore({ now: () => NOW });
+    startTrijak(store);
+    store.confirmControl();
+    store.setRedZone({ x: 40, y: 40 });
+    store.setIdentity("member");
+    store.placeMapPin({ x: 22, y: 60 });
+    expect(store.getMap().pins).toHaveLength(1);
+    expect(store.getMap().redZone).toBeTruthy();
+    store.setIdentity("commander");
+    const pending = store.resolveDrill();
+    expect(pending.incident.status).toBe("RESOLUTION_PENDING");
+    expect(store.getMap().pins).toHaveLength(1);
+    store.setIdentity("commander2");
+    const resolved = store.resolveDrill();
+    expect(resolved.incident.status).toBe("RESOLVED");
+    expect(store.getMap().pins).toEqual([]);
+    expect(store.getMap().redZone).toBeNull();
+    expect(store.getAdminQueue().active).toBe(false);
+    expect(RESOLUTION_APPROVALS_REQUIRED).toBe(2);
+  });
+
+  it("shares map state across two stores on the same sharedStorage", () => {
+    const mem = new Map();
+    const sharedStorage = {
+      getItem: (key) => (mem.has(key) ? mem.get(key) : null),
+      setItem: (key, value) => mem.set(key, String(value)),
+      removeItem: (key) => mem.delete(key),
+    };
+    const identityA = new Map();
+    const identityB = new Map();
+    const storageA = {
+      getItem: (key) => (identityA.has(key) ? identityA.get(key) : null),
+      setItem: (key, value) => identityA.set(key, String(value)),
+      removeItem: (key) => identityA.delete(key),
+    };
+    const storageB = {
+      getItem: (key) => (identityB.has(key) ? identityB.get(key) : null),
+      setItem: (key, value) => identityB.set(key, String(value)),
+      removeItem: (key) => identityB.delete(key),
+    };
+    const commander = createDemoStore({ now: () => NOW, storage: storageA, sharedStorage, seedTemplateId: TRIJAK_TEMPLATE_ID });
+    commander.confirmControl();
+    commander.setRedZone({ x: 30, y: 30 });
+    const recipient = createDemoStore({ now: () => NOW, storage: storageB, sharedStorage, seedTemplateId: TRIJAK_TEMPLATE_ID });
+    recipient.setIdentity("member");
+    expect(recipient.getMap().redZone.x).toBe(30);
+    recipient.placeMapPin({ x: 80, y: 20 });
+    const commanderAgain = createDemoStore({ now: () => NOW, storage: storageA, sharedStorage, seedTemplateId: TRIJAK_TEMPLATE_ID });
+    expect(commanderAgain.getMap().pins[0].label).toBe("ครูผู้รับแจ้ง");
+    expect(commanderAgain.getAdminQueue().controllerId).toBe("commander");
   });
 });

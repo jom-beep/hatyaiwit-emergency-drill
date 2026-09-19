@@ -9,7 +9,19 @@ export function isDemoLocation(pathname = "", search = "") {
   return path === "/demo" || params.get("demo") === "1";
 }
 
+export const TRIJAK_TEMPLATE_ID = "TRIJAK_191";
+export const ADMIN_QUEUE_STEP_MS = 20_000;
+export const SHARED_DEMO_STORAGE_KEY = "hyw-demo-shared-v2";
+export const IDENTITY_DEMO_STORAGE_KEY = "hyw-demo-identity";
+
 export const DRILL_TEMPLATES = [
+  {
+    id: TRIJAK_TEMPLATE_ID,
+    type: "LOCKDOWN",
+    labelTh: "กราดยิง / ตรีจักร 191",
+    instruction:
+      "นี่คือการฝึกซ้อม กราดยิง / ตรีจักร 191 — ล็อกประตู ปิดไฟ เงียบและอยู่ต่ำ ห้ามเปิดห้อง จนกว่าศูนย์ควบคุมจะประกาศยุติ ห้ามใช้แทนเสียงตามสายหรือโทร 191",
+  },
   {
     id: "FIRE",
     type: "EVACUATE",
@@ -90,7 +102,33 @@ export function priorInstructionUpdates(incident) {
   return updates.slice(0, Math.max(0, updates.length - 1)).slice().reverse();
 }
 
+export function isTrijak191(incident) {
+  return incident?.templateId === TRIJAK_TEMPLATE_ID;
+}
+
+export function emptyMapState() {
+  return { pins: [], redZone: null };
+}
+
+export const DEMO_ADMINS = [
+  { id: "commander", displayName: "ผู้ประกาศ 1", callSign: "CMD-DEMO1", queueOrder: 1 },
+  { id: "commander2", displayName: "ผู้ประกาศ 2", callSign: "CMD-DEMO2", queueOrder: 2 },
+  { id: "commander3", displayName: "ผู้ประกาศ 3", callSign: "CMD-DEMO3", queueOrder: 3 },
+  { id: "commander4", displayName: "ผู้ประกาศ 4", callSign: "CMD-DEMO4", queueOrder: 4 },
+  { id: "commander5", displayName: "ผู้ประกาศ 5", callSign: "CMD-DEMO5", queueOrder: 5 },
+];
+
 export const RECIPIENT_GUIDANCE = {
+  TRIJAK: {
+    title: "ขณะฝึกซ้อมกราดยิง / ตรีจักร 191",
+    steps: [
+      "นี่คือการฝึกซ้อม · DRILL — ไม่ใช่เหตุจริง",
+      "ล็อกประตู ปิดไฟ เงียบ และอยู่ต่ำในจุดกำบัง",
+      "ห้ามเปิดประตูหรือออกนอกห้องจนกว่าศูนย์ควบคุมจะประกาศยุติ",
+      "ปักหมุดบนแผนที่หากเห็นตำแหน่งเหตุ (จำลองในโหมดสาธิต)",
+      "ห้ามใช้แอปนี้แทนเสียงตามสาย วิทยุสื่อสาร หรือโทร 191",
+    ],
+  },
   LOCKDOWN: {
     title: "ขณะล็อกดาวน์ / ปิดพื้นที่",
     steps: [
@@ -162,6 +200,27 @@ export const DEMO_IDENTITIES = [
     displayName: "ผู้ประกาศ 2",
   },
   {
+    id: "commander3",
+    email: "ผู้ประกาศคนที่ 3 (จำลอง)",
+    role: "commander",
+    callSign: "CMD-DEMO3",
+    displayName: "ผู้ประกาศ 3",
+  },
+  {
+    id: "commander4",
+    email: "ผู้ประกาศคนที่ 4 (จำลอง)",
+    role: "commander",
+    callSign: "CMD-DEMO4",
+    displayName: "ผู้ประกาศ 4",
+  },
+  {
+    id: "commander5",
+    email: "ผู้ประกาศคนที่ 5 (จำลอง)",
+    role: "commander",
+    callSign: "CMD-DEMO5",
+    displayName: "ผู้ประกาศ 5",
+  },
+  {
     id: "member",
     email: "ครูสมชาย ใจดี (จำลอง)",
     role: "member",
@@ -220,7 +279,45 @@ function templateById(id) {
 }
 
 function templateByType(type) {
-  return DRILL_TEMPLATES.find((item) => item.type === type) ?? DRILL_TEMPLATES[0];
+  return (
+    DRILL_TEMPLATES.find((item) => item.type === type && item.id !== TRIJAK_TEMPLATE_ID) ??
+    DRILL_TEMPLATES.find((item) => item.type === type) ??
+    DRILL_TEMPLATES[0]
+  );
+}
+
+function clampPercent(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 50;
+  return Math.min(96, Math.max(4, Math.round(number * 10) / 10));
+}
+
+function knownIdentityId(id) {
+  return DEMO_IDENTITIES.some((item) => item.id === id) ? id : "commander";
+}
+
+function emptyAdminQueue() {
+  return {
+    active: false,
+    currentIndex: 0,
+    startedAt: null,
+    deadlineAt: null,
+    controllerId: null,
+    claimedAt: null,
+    exhausted: false,
+  };
+}
+
+function freshAdminQueue(nowMs) {
+  return {
+    active: true,
+    currentIndex: 0,
+    startedAt: nowMs,
+    deadlineAt: nowMs + ADMIN_QUEUE_STEP_MS,
+    controllerId: null,
+    claimedAt: null,
+    exhausted: false,
+  };
 }
 
 export function makeIncident(nowMs, template, zone = "ALL", publisher = "ศูนย์ควบคุม") {
@@ -235,6 +332,7 @@ export function makeIncident(nowMs, template, zone = "ALL", publisher = "ศู�
     status: "ACTIVE",
     zone,
     title: `[การฝึกซ้อม] ${template.labelTh}`,
+    templateId: template.id,
     instruction: template.instruction,
     issuedAt,
     expiresAt: new Date(nowMs + 2 * 60 * 60_000).toISOString(),
@@ -346,6 +444,13 @@ function normalizeIncident(raw) {
       },
     ];
   }
+  if (!incident.templateId) {
+    if (/ตรีจักร|กราดยิง/.test(String(incident.title ?? ""))) incident.templateId = TRIJAK_TEMPLATE_ID;
+    else {
+      const match = DRILL_TEMPLATES.find((item) => item.type === incident.type && item.id !== TRIJAK_TEMPLATE_ID);
+      incident.templateId = match?.id ?? incident.type;
+    }
+  }
   return incident;
 }
 
@@ -360,9 +465,11 @@ function normalizeAck(row) {
 
 export function createDemoStore(options = {}) {
   const now = options.now ?? (() => Date.now());
-  const storage = options.storage ?? null;
+  const identityStorage = options.storage ?? null;
+  const sharedStorage = options.sharedStorage ?? options.storage ?? null;
+  const broadcast = options.broadcast ?? null;
   const listeners = new Set();
-  const STORAGE_KEY = "hyw-demo-v1";
+  const seedTemplateId = options.seedTemplateId ?? "FIRE";
 
   let people = seedPeople();
   let identityId = "commander";
@@ -371,6 +478,10 @@ export function createDemoStore(options = {}) {
   let actionToken = null;
   let actionTokenExpires = 0;
   let resolutionApprovals = [];
+  let mapState = emptyMapState();
+  let adminQueue = emptyAdminQueue();
+  let revision = 0;
+  let applyingExternal = false;
   let devices = { total: people.length, ready: people.length, stale: 0 };
 
   function currentIdentity() {
@@ -378,40 +489,104 @@ export function createDemoStore(options = {}) {
     return identity;
   }
 
-  function persist() {
-    if (!storage?.setItem) return;
-    storage.setItem(
-      STORAGE_KEY,
+  function persistIdentity() {
+    if (!identityStorage?.setItem) return;
+    identityStorage.setItem(IDENTITY_DEMO_STORAGE_KEY, identityId);
+  }
+
+  function persistShared() {
+    if (applyingExternal || !sharedStorage?.setItem) return;
+    revision = now();
+    sharedStorage.setItem(
+      SHARED_DEMO_STORAGE_KEY,
       JSON.stringify({
-        identityId,
+        revision,
         incident,
         acknowledgements,
         resolutionApprovals,
+        mapState,
+        adminQueue,
       }),
     );
+    try {
+      broadcast?.postMessage?.({ type: "demo_sync", revision });
+    } catch {
+      // BroadcastChannel may be closed in tests.
+    }
   }
 
-  function restore() {
-    if (!storage?.getItem) return false;
+  function loadShared(parsed) {
+    incident = parsed.incident ? normalizeIncident(parsed.incident) : null;
+    acknowledgements = Array.isArray(parsed.acknowledgements) ? parsed.acknowledgements.map(normalizeAck) : [];
+    resolutionApprovals = Array.isArray(parsed.resolutionApprovals) ? parsed.resolutionApprovals : [];
+    mapState = parsed.mapState && typeof parsed.mapState === "object"
+      ? {
+          pins: Array.isArray(parsed.mapState.pins) ? clone(parsed.mapState.pins) : [],
+          redZone: parsed.mapState.redZone ?? null,
+        }
+      : emptyMapState();
+    adminQueue = parsed.adminQueue && typeof parsed.adminQueue === "object"
+      ? { ...emptyAdminQueue(), ...parsed.adminQueue }
+      : emptyAdminQueue();
+    if (typeof parsed.revision === "number") revision = parsed.revision;
+  }
+
+  function restoreIdentity() {
+    if (!identityStorage?.getItem) return;
     try {
-      const raw = storage.getItem(STORAGE_KEY);
+      const raw = identityStorage.getItem(IDENTITY_DEMO_STORAGE_KEY);
+      if (raw) identityId = knownIdentityId(raw);
+    } catch {
+      identityId = "commander";
+    }
+  }
+
+  function restoreShared() {
+    if (!sharedStorage?.getItem) return false;
+    try {
+      const raw = sharedStorage.getItem(SHARED_DEMO_STORAGE_KEY);
       if (!raw) return false;
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== "object") return false;
-      identityId = parsed.identityId === "commander2" || parsed.identityId === "member" ? parsed.identityId : "commander";
-      incident = parsed.incident ? normalizeIncident(parsed.incident) : null;
-      acknowledgements = Array.isArray(parsed.acknowledgements) ? parsed.acknowledgements.map(normalizeAck) : [];
-      resolutionApprovals = Array.isArray(parsed.resolutionApprovals) ? parsed.resolutionApprovals : [];
+      loadShared(parsed);
+      if (parsed.identityId && !options.sharedStorage) identityId = knownIdentityId(parsed.identityId);
       return true;
     } catch {
       return false;
     }
   }
 
-  function emit() {
-    persist();
+  function notifyListeners() {
     const snapshot = getActive();
-    for (const listener of listeners) listener({ type: "incident_state", incident: snapshot });
+    const payload = {
+      type: "incident_state",
+      incident: snapshot,
+      map: getMap(),
+      adminQueue: describeAdminQueue(),
+    };
+    for (const listener of listeners) listener(payload);
+  }
+
+  function emit() {
+    persistIdentity();
+    persistShared();
+    notifyListeners();
+  }
+
+  function applyExternalShared(raw) {
+    if (!raw || applyingExternal) return;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      if (typeof parsed.revision === "number" && parsed.revision === revision) return;
+      applyingExternal = true;
+      loadShared(parsed);
+      notifyListeners();
+    } catch {
+      // Ignore malformed cross-tab payloads.
+    } finally {
+      applyingExternal = false;
+    }
   }
 
   function roster() {
@@ -419,14 +594,81 @@ export function createDemoStore(options = {}) {
   }
 
   function seedActiveDrill() {
-    const template = templateById("FIRE");
+    const template = templateById(seedTemplateId);
     incident = makeIncident(now() - 4 * 60_000, template, "ALL");
     acknowledgements = seedAcknowledgements(people, incident.id, new Date(now() - 2 * 60_000).toISOString());
     resolutionApprovals = [];
+    mapState = emptyMapState();
+    adminQueue = isTrijak191(incident) ? freshAdminQueue(now()) : emptyAdminQueue();
   }
 
   function getActive() {
     return incident ? clone(incident) : null;
+  }
+
+  function getMap() {
+    return clone(mapState);
+  }
+
+  function advanceAdminQueue() {
+    if (!adminQueue.active || adminQueue.controllerId) return false;
+    let changed = false;
+    while (adminQueue.deadlineAt && now() >= adminQueue.deadlineAt) {
+      if (adminQueue.currentIndex >= DEMO_ADMINS.length - 1) {
+        adminQueue = { ...adminQueue, exhausted: true, deadlineAt: null };
+        changed = true;
+        break;
+      }
+      adminQueue = {
+        ...adminQueue,
+        currentIndex: adminQueue.currentIndex + 1,
+        deadlineAt: now() + ADMIN_QUEUE_STEP_MS,
+      };
+      changed = true;
+    }
+    return changed;
+  }
+
+  function describeAdminQueue() {
+    const changed = advanceAdminQueue();
+    if (changed) persistShared();
+    const current = DEMO_ADMINS[adminQueue.currentIndex] ?? DEMO_ADMINS[0];
+    const controller = DEMO_ADMINS.find((item) => item.id === adminQueue.controllerId) ?? null;
+    const remainingMs =
+      adminQueue.active && !adminQueue.controllerId && adminQueue.deadlineAt
+        ? Math.max(0, adminQueue.deadlineAt - now())
+        : 0;
+    return {
+      active: Boolean(adminQueue.active && incident && incident.status !== "RESOLVED" && isTrijak191(incident)),
+      currentIndex: adminQueue.currentIndex,
+      currentAdmin: clone(current),
+      controllerId: adminQueue.controllerId,
+      controllerName: controller?.displayName ?? null,
+      remainingMs,
+      stepMs: ADMIN_QUEUE_STEP_MS,
+      exhausted: Boolean(adminQueue.exhausted),
+      claimedAt: adminQueue.claimedAt,
+      admins: DEMO_ADMINS.map((admin, index) => ({
+        ...admin,
+        state:
+          adminQueue.controllerId === admin.id
+            ? "controller"
+            : adminQueue.controllerId
+              ? index < adminQueue.currentIndex || admin.id === adminQueue.controllerId
+                ? "passed"
+                : "waiting"
+              : index < adminQueue.currentIndex
+                ? "missed"
+                : index === adminQueue.currentIndex
+                  ? "offered"
+                  : "waiting",
+      })),
+    };
+  }
+
+  function clearMapMarkers() {
+    mapState = emptyMapState();
+    adminQueue = emptyAdminQueue();
   }
 
   function dashboard() {
@@ -446,11 +688,25 @@ export function createDemoStore(options = {}) {
       acknowledgement: incident ? { results: ackRows } : null,
       rollup: summary,
       afterAction: afterActionSummary(incident, summary, incident?.resolvedAt),
+      map: getMap(),
+      adminQueue: describeAdminQueue(),
       demo: true,
     };
   }
 
-  if (!restore()) seedActiveDrill();
+  restoreIdentity();
+  if (!restoreShared()) seedActiveDrill();
+
+  if (typeof window !== "undefined" && sharedStorage === window.localStorage) {
+    window.addEventListener("storage", (event) => {
+      if (event.key === SHARED_DEMO_STORAGE_KEY) applyExternalShared(event.newValue);
+    });
+  }
+  if (broadcast?.addEventListener) {
+    broadcast.addEventListener("message", (event) => {
+      if (event.data?.type === "demo_sync") applyExternalShared(sharedStorage?.getItem?.(SHARED_DEMO_STORAGE_KEY));
+    });
+  }
 
   return {
     getConfig() {
@@ -458,14 +714,18 @@ export function createDemoStore(options = {}) {
         schoolName: "โรงเรียนหาดใหญ่วิทยาลัย (โหมดสาธิต)",
         mode: "DRILL",
         googleDomain: "khanchai.ac.th",
-        version: "demo-0.8.0",
+        version: "demo-0.9.0",
         vapidPublicKey: "",
         zones: clone(DEMO_ZONES),
         demo: true,
         templates: clone(DRILL_TEMPLATES),
+        identities: clone(DEMO_IDENTITIES),
         recipientGuidance: clone(RECIPIENT_GUIDANCE),
         resolutionApprovalsRequired: RESOLUTION_APPROVALS_REQUIRED,
         silentModeKey: SILENT_MODE_STORAGE_KEY,
+        trijakTemplateId: TRIJAK_TEMPLATE_ID,
+        adminQueueStepSeconds: ADMIN_QUEUE_STEP_MS / 1000,
+        campusMapUrl: "/campus-map.svg",
       };
     },
     getMe() {
@@ -488,18 +748,22 @@ export function createDemoStore(options = {}) {
         ackedIncidentId: ack?.incidentId ?? null,
         ackAt: ack?.firstAckAt ?? ack?.createdAt ?? null,
         ackUpdatedAt: ack?.createdAt ?? null,
+        isController: adminQueue.controllerId === identity.id,
+        queueOrder: identity.queueOrder ?? null,
       };
     },
     setIdentity(id) {
       if (!DEMO_IDENTITIES.some((item) => item.id === id)) throw new DemoError(400, "ไม่พบบทบาทจำลองนี้");
       identityId = id;
-      persist();
+      persistIdentity();
       return this.getMe();
     },
     getIdentityId() {
       return identityId;
     },
     getActive,
+    getMap,
+    getAdminQueue: describeAdminQueue,
     getDashboard: dashboard,
     getRosterSummary: roster,
     acknowledge({ incidentId, response, zone }) {
@@ -580,8 +844,10 @@ export function createDemoStore(options = {}) {
       if (incident.updates?.[0]) incident.updates[0].instruction = text;
       acknowledgements = [];
       resolutionApprovals = [];
+      mapState = emptyMapState();
+      adminQueue = isTrijak191(incident) ? freshAdminQueue(now()) : emptyAdminQueue();
       emit();
-      return { incident: getActive() };
+      return { incident: getActive(), map: getMap(), adminQueue: describeAdminQueue() };
     },
     resolveDrill() {
       const identity = currentIdentity();
@@ -596,21 +862,95 @@ export function createDemoStore(options = {}) {
         status: resolved ? "RESOLVED" : "RESOLUTION_PENDING",
         ...(resolved ? { resolvedAt: new Date(now()).toISOString() } : {}),
       };
+      if (resolved) clearMapMarkers();
       emit();
       return {
         incident: getActive(),
+        map: getMap(),
+        adminQueue: describeAdminQueue(),
         approvalCount: resolutionApprovals.length,
         approvalsRequired: Math.max(0, RESOLUTION_APPROVALS_REQUIRED - resolutionApprovals.length),
       };
+    },
+    placeMapPin({ x, y }) {
+      if (!incident || incident.status === "RESOLVED" || !isTrijak191(incident)) {
+        throw new DemoError(409, "ปักหมุดได้เฉพาะขณะฝึกซ้อมตรีจักร 191");
+      }
+      const identity = currentIdentity();
+      if (identity.role === "commander" || !identity.personId) {
+        throw new DemoError(403, "สลับเป็นครูผู้รับแจ้งก่อน จึงจะปักหมุดรายงานได้");
+      }
+      const plantedAt = new Date(now()).toISOString();
+      const pin = {
+        id: identity.personId,
+        x: clampPercent(x),
+        y: clampPercent(y),
+        label: identity.displayName,
+        plantedAt,
+      };
+      mapState = {
+        ...mapState,
+        pins: [...mapState.pins.filter((item) => item.id !== pin.id), pin],
+      };
+      emit();
+      return { ok: true, pin, map: getMap() };
+    },
+    setRedZone({ x, y, radius }) {
+      if (!incident || incident.status === "RESOLVED" || !isTrijak191(incident)) {
+        throw new DemoError(409, "วางเขตแดงได้เฉพาะขณะฝึกซ้อมตรีจักร 191");
+      }
+      const identity = currentIdentity();
+      advanceAdminQueue();
+      if (adminQueue.controllerId !== identity.id) {
+        throw new DemoError(403, "ต้องยืนยันควบคุมคิวก่อน จึงจะวางเขตแดงได้");
+      }
+      const movedAt = new Date(now()).toISOString();
+      mapState = {
+        ...mapState,
+        redZone: {
+          x: clampPercent(x),
+          y: clampPercent(y),
+          radius: Math.min(18, Math.max(6, Number(radius) || 10)),
+          movedAt,
+          movedBy: identity.displayName,
+        },
+      };
+      emit();
+      return { ok: true, redZone: clone(mapState.redZone), map: getMap() };
+    },
+    confirmControl() {
+      if (!incident || incident.status === "RESOLVED" || !isTrijak191(incident)) {
+        throw new DemoError(409, "ยืนยันควบคุมได้เฉพาะขณะฝึกซ้อมตรีจักร 191");
+      }
+      const identity = currentIdentity();
+      if (identity.role !== "commander") throw new DemoError(403, "ไม่มีสิทธิ์ดำเนินการนี้");
+      advanceAdminQueue();
+      if (adminQueue.controllerId) {
+        throw new DemoError(409, "มีผู้ประกาศยืนยันควบคุมแล้ว");
+      }
+      const current = DEMO_ADMINS[adminQueue.currentIndex];
+      if (identity.id !== current.id) {
+        throw new DemoError(403, `ยังไม่ถึงคิวของคุณ ตอนนี้อยู่ที่ ${current.displayName}`);
+      }
+      adminQueue = {
+        ...adminQueue,
+        controllerId: identity.id,
+        claimedAt: now(),
+        deadlineAt: null,
+        exhausted: false,
+      };
+      emit();
+      return { ok: true, adminQueue: describeAdminQueue() };
     },
     reset() {
       identityId = "commander";
       actionToken = null;
       actionTokenExpires = 0;
-      if (storage?.removeItem) storage.removeItem(STORAGE_KEY);
+      if (identityStorage?.removeItem) identityStorage.removeItem(IDENTITY_DEMO_STORAGE_KEY);
+      if (sharedStorage?.removeItem) sharedStorage.removeItem(SHARED_DEMO_STORAGE_KEY);
       seedActiveDrill();
       emit();
-      return { ok: true, incident: getActive() };
+      return { ok: true, incident: getActive(), map: getMap(), adminQueue: describeAdminQueue() };
     },
     subscribe(listener) {
       listeners.add(listener);
@@ -634,10 +974,17 @@ export function createDemoApi(options = {}) {
     try {
       if (method === "GET" && pathname === "/api/config") return store.getConfig();
       if (method === "GET" && pathname === "/api/health") return { ok: true, mode: "DRILL", demo: true };
-      if (method === "GET" && pathname === "/api/version") return { version: "demo-0.8.0" };
+      if (method === "GET" && pathname === "/api/version") return { version: "demo-0.9.0" };
       if (method === "GET" && pathname === "/api/me") return store.getMe();
-      if (method === "GET" && pathname === "/api/incidents/active") return { incident: store.getActive() };
+      if (method === "GET" && pathname === "/api/incidents/active") {
+        return { incident: store.getActive(), map: store.getMap(), adminQueue: store.getAdminQueue() };
+      }
       if (method === "GET" && pathname === "/api/dashboard") return store.getDashboard();
+      if (method === "GET" && pathname === "/api/demo/map") return { map: store.getMap(), adminQueue: store.getAdminQueue() };
+      if (method === "GET" && pathname === "/api/demo/admin-queue") return store.getAdminQueue();
+      if (method === "POST" && pathname === "/api/demo/map-pin") return store.placeMapPin(body);
+      if (method === "POST" && pathname === "/api/demo/red-zone") return store.setRedZone(body);
+      if (method === "POST" && pathname === "/api/demo/confirm-control") return store.confirmControl();
       if (method === "POST" && pathname === "/api/acknowledgements") return store.acknowledge(body);
       if (method === "POST" && pathname === "/api/commander/action-token") return store.createActionToken();
       if (method === "POST" && pathname === "/api/incidents/drill") return store.activateDrill(body);
@@ -646,11 +993,11 @@ export function createDemoApi(options = {}) {
       if (method === "GET" && pathname === "/api/commander/roster") {
         return {
           you: store.getMe().callSign,
-          capacity: { active: 2, pending: 0, free: 3 },
-          commanders: [
-            { callSign: "CMD-DEMO1", lastLoginAt: new Date().toISOString() },
-            { callSign: "CMD-DEMO2", lastLoginAt: new Date().toISOString() },
-          ],
+          capacity: { active: 5, pending: 0, free: 0 },
+          commanders: DEMO_ADMINS.map((admin) => ({
+            callSign: admin.callSign,
+            lastLoginAt: new Date().toISOString(),
+          })),
           pendingRevocationApprovals: 0,
         };
       }

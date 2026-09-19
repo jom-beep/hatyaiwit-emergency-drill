@@ -17,7 +17,7 @@
   </head>
   <body class="is-logged-out">
     <div class="drill-ribbon">นี่คือการฝึกซ้อม · DRILL ONLY · ไม่ใช่เหตุจริง</div>
-    <div id="demo-ribbon" class="demo-ribbon demo-only">โหมดสาธิต · ข้อมูลจำลอง · ไม่เชื่อม Google · ไม่ส่งแจ้งเตือนจริง</div>
+    <div id="demo-ribbon" class="demo-ribbon demo-only">โหมดสาธิต · ตรีจักร 191 · ข้อมูลจำลอง · ไม่เชื่อม Google · ไม่ส่งแจ้งเตือนจริง</div>
     <header class="topbar">
       <div class="brand">
         <img src="/icon.svg" alt="" width="44" height="44" />
@@ -40,9 +40,13 @@
       <div id="demo-identities" class="demo-identities" role="tablist" aria-label="บทบาทจำลอง">
         <button class="demo-id is-active" type="button" data-identity="commander">ผู้ประกาศ 1</button>
         <button class="demo-id" type="button" data-identity="commander2">ผู้ประกาศ 2</button>
+        <button class="demo-id" type="button" data-identity="commander3">ผู้ประกาศ 3</button>
+        <button class="demo-id" type="button" data-identity="commander4">ผู้ประกาศ 4</button>
+        <button class="demo-id" type="button" data-identity="commander5">ผู้ประกาศ 5</button>
         <button class="demo-id" type="button" data-identity="member">ครูผู้รับแจ้ง</button>
       </div>
       <button id="demo-reset" class="button ghost" type="button">รีเซ็ตข้อมูลจำลอง</button>
+      <p class="demo-toolbar-note">เปิดสองแท็บแล้วสลับบทบาทได้ — หมุดและเขตแดงซิงก์กันในเครื่องนี้</p>
     </div>
 
     <div id="boot-screen" class="boot-screen" role="status">กำลังโหลดระบบ…</div>
@@ -127,6 +131,27 @@
           </div>
         </section>
 
+        <section id="trijak-map-panel" class="card trijak-map-card demo-only hidden">
+          <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL · ตรีจักร 191</p>
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">แผนผังโรงเรียนจำลอง</span>
+              <h2>ปักหมุดรายงาน / เขตแดง</h2>
+            </div>
+            <span id="map-live-pill" class="pill commander-pill">DRILL</span>
+          </div>
+          <p id="map-hint" class="note">แตะแผนที่เพื่อปักหมุดหรือวางเขตแดง</p>
+          <div id="campus-map" class="campus-map" role="application" aria-label="แผนผังโรงเรียนจำลอง ตรีจักร 191">
+            <img src="/campus-map.svg" width="1000" height="640" alt="แผนผังโรงเรียนจำลอง อาคาร 1–3 สนามกีฬา และโรงอาหาร" />
+            <div id="map-markers" class="map-markers"></div>
+          </div>
+          <ul id="map-legend" class="map-legend">
+            <li><i class="legend-pin"></i>หมุดผู้รับแจ้ง · แสดงเวลาที่ปัก</li>
+            <li><i class="legend-zone"></i>เขตแดงจากผู้ประกาศที่ควบคุม</li>
+          </ul>
+          <ul id="map-pin-list" class="map-pin-list"></ul>
+        </section>
+
         <div id="user-view">
         <div id="user-secondary" class="user-secondary">
         <div class="grid two-columns">
@@ -198,6 +223,21 @@
           <ul id="reports-list" class="report-list"></ul>
           <p id="reports-empty" class="empty-state hidden">ยังไม่มีรายงานรอรับเรื่อง</p>
           <p class="note">กดรับเรื่องเพื่อหยุดการไล่ระดับไปยังผู้ประกาศคนถัดไป</p>
+        </section>
+
+        <section id="admin-queue-panel" class="card commander demo-only hidden">
+          <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL · คิวผู้ประกาศแยกจากการยุติ 2 คน</p>
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">คิวควบคุม ตรีจักร 191</span>
+              <h2>ยืนยันควบคุมภายใน 20 วินาที</h2>
+            </div>
+            <span id="admin-queue-timer" class="pill commander-pill">–</span>
+          </div>
+          <ol id="admin-queue-list" class="admin-queue-list"></ol>
+          <p id="admin-queue-status" class="resolve-hint">ผู้ประกาศลำดับที่ 1 ต้องยืนยันควบคุมก่อน จึงจะวางเขตแดงได้</p>
+          <button id="confirm-control" class="button warning wide" type="button">ยืนยันควบคุมการฝึกซ้อมนี้</button>
+          <p class="note">ถ้าไม่กดทัน ระบบจะหมุนไปผู้ประกาศคนถัดไปจนถึงคนที่ 5 — การยุติการฝึกยังต้องยืนยัน 2 คนตามเดิม</p>
         </section>
 
         <section id="commander-panel" class="card commander">
