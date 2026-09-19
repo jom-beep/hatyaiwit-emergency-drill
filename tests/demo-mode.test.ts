@@ -56,6 +56,8 @@ describe("demo mode must not weaken production auth", () => {
   it("wires the ตรีจักร 191 demo map, red zone, and 20s admin queue", () => {
     expect(html).toContain("ตรีจักร 191");
     expect(html).toContain("campus-map");
+    expect(html).toContain('width="1000" height="640"');
+    expect(readFileSync(new URL("../public/campus-map.svg", import.meta.url), "utf8")).toContain('width="1000" height="640"');
     expect(html).toContain("ยืนยันควบคุมภายใน 20 วินาที");
     expect(html).toContain('data-identity="commander5"');
     expect(html).toContain("เขตแดง");

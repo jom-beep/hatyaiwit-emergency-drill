@@ -351,9 +351,10 @@ body.demo-mode { padding-bottom: 0; }
 .campus-map {
   position: relative; margin-top: 12px; border-radius: 16px; overflow: hidden;
   border: 1px solid #c9a23a; background: #d8ead4; touch-action: manipulation; cursor: crosshair;
+  aspect-ratio: 1000 / 640; min-height: 220px;
 }
-.campus-map img { display: block; width: 100%; height: auto; pointer-events: none; user-select: none; }
-.map-markers { position: absolute; inset: 0; pointer-events: none; }
+.campus-map img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; }
+.map-markers { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
 .map-pin, .map-red-zone { position: absolute; pointer-events: none; transform: translate(-50%, -100%); }
 .map-pin {
   z-index: 2; min-width: 72px; text-align: center;
@@ -370,8 +371,8 @@ body.demo-mode { padding-bottom: 0; }
 }
 .map-red-zone {
   z-index: 1; transform: translate(-50%, -50%);
-  border-radius: 50%; background: rgba(159, 36, 54, .28);
-  border: 3px solid #9f2436; box-shadow: 0 0 0 6px rgba(159, 36, 54, .12);
+  border-radius: 50%; background: rgba(159, 36, 54, .38);
+  border: 4px solid #9f2436; box-shadow: 0 0 0 8px rgba(159, 36, 54, .16);
 }
 .map-red-zone::after {
   content: "เขตแดง"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);

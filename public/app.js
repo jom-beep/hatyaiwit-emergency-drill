@@ -725,7 +725,7 @@ function renderTrijakMap(incident) {
     zone.className = "map-red-zone";
     zone.style.left = `${map.redZone.x}%`;
     zone.style.top = `${map.redZone.y}%`;
-    const size = Math.max(48, (map.redZone.radius || 10) * 6);
+    const size = Math.max(72, (map.redZone.radius || 10) * 8);
     zone.style.width = `${size}px`;
     zone.style.height = `${size}px`;
     zone.title = `เขตแดง · ย้ายเมื่อ ${formatPinTime(map.redZone.movedAt)} น.`;
