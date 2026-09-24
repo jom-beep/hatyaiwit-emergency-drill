@@ -1,0 +1,17 @@
+{
+  "name": "Hatyaiwit Emergency Drill",
+  "user": "ubuntu",
+  "install": "./scripts/cloud-agent-install.sh",
+  "terminals": [
+    {
+      "name": "wrangler-dev",
+      "command": "npm run dev"
+    }
+  ],
+  "ports": [
+    {
+      "name": "wrangler dev",
+      "port": 8787
+    }
+  ]
+}
