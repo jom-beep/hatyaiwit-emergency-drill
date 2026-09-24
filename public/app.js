@@ -113,6 +113,9 @@ const state = {
   adminQueue: null,
   queueTimer: null,
   demoAdvancedNudged: false,
+  demoScriptSignature: "",
+  adminQueueSig: "",
+  mapSig: "",
 };
 
 function isDemoMode() {
@@ -241,6 +244,11 @@ async function refreshReadiness() {
 
 function refreshInstallBanner(ready) {
   const banner = $("#install-banner");
+  if (isDemoMode()) {
+    banner?.classList.add("hidden");
+    document.body.classList.remove("has-install-banner");
+    return;
+  }
   const hide = Boolean(ready || isStandalone() || sessionStorage.getItem("hyw-install-dismissed") === "1");
   if (hide) {
     banner.classList.add("hidden");
@@ -501,7 +509,7 @@ function renderAllClear(incident) {
     : "ศูนย์ควบคุมประกาศยุติการฝึกซ้อมแล้ว";
   const sameIncident = state.ackedIncidentId === incident.id && state.ackResponse;
   if (state.me?.role === "commander") {
-    $("#all-clear-ack").textContent = "สลับเป็นครูผู้รับแจ้งเพื่อดูเวลาที่กดรับทราบของตนเอง";
+    $("#all-clear-ack").textContent = "เปิดแท็บผู้รับแจ้งเพื่อดูเวลาที่คนนั้นกดรับทราบ";
     $("#all-clear-status").textContent = "";
   } else if (sameIncident) {
     const first = formatAckDateTime(state.ackAt);
@@ -715,6 +723,9 @@ function renderTrijakMap(incident) {
   if (!panel) return;
   const live = Boolean(state.demoApi && incidentIsLive(incident) && isTrijak191(incident));
   panel.classList.toggle("hidden", !live);
+  const mapSig = `${live}|${state.me?.identityId || ""}|${state.adminQueue?.controllerId || ""}|${JSON.stringify(state.map || {})}`;
+  if (state.mapSig === mapSig) return;
+  state.mapSig = mapSig;
   if (!live) {
     $("#map-markers")?.replaceChildren();
     $("#map-pin-list")?.replaceChildren();
@@ -796,6 +807,7 @@ function renderAdminQueue(incident) {
       window.clearInterval(state.queueTimer);
       state.queueTimer = null;
     }
+    state.adminQueueSig = "";
     renderDemoScript();
     return;
   }
@@ -809,6 +821,12 @@ function renderAdminQueue(incident) {
   const timer = $("#admin-queue-timer");
   const status = $("#admin-queue-status");
   const button = $("#confirm-control");
+  const second = Math.ceil((queue?.remainingMs || 0) / 1000);
+  const queueSig = queue
+    ? `${queue.controllerId}|${queue.currentIndex}|${queue.exhausted}|${second}|${state.me?.identityId || ""}`
+    : "empty";
+  if (state.adminQueueSig === queueSig) return;
+  state.adminQueueSig = queueSig;
   if (!queue) {
     list.replaceChildren();
     renderDemoScript();
@@ -1347,6 +1365,25 @@ function renderDemoScript() {
   const commander = state.me?.role === "commander";
   const steps = commander ? CONTROL_SCRIPT : RECIPIENT_SCRIPT;
   const flags = commander ? commanderScriptFlags() : recipientScriptFlags();
+  const currentIndex = flags.indexOf("current");
+  let hintText = incidentIsLive(state.incident)
+    ? "ทำครบขั้นตอนบนหน้านี้แล้ว — รออีกแท็บกดยุติ"
+    : commander
+      ? "ซ้อมรอบนี้จบแล้ว หมุดและเขตแดงถูกล้างแล้ว — กดค้างปุ่มแดงเพื่อเริ่มรอบใหม่"
+      : "ซ้อมรอบนี้จบแล้ว หมุดและเขตแดงถูกล้างแล้ว";
+  if (currentIndex >= 0) {
+    hintText = steps[currentIndex].hint;
+    if (commander && state.incident && !isTrijak191(state.incident) && steps[currentIndex].id === "watch") {
+      hintText = "เทมเพลตนี้ไม่มีเขตแดง — ดูตัวเลขสถานะ แล้วค่อยยุติ";
+    }
+    if (!commander && !state.incident) hintText = "รอแท็บศูนย์ควบคุมกดเริ่มซ้อม แล้วกดรับทราบบนหน้านี้";
+  }
+  const bannerText = commander
+    ? "ข้อความที่ผู้รับแจ้งเห็นบนอีกแท็บ"
+    : "หน้าผู้รับแจ้ง — กราดยิง / ตรีจักร 191";
+  const signature = `${commander ? "c" : "m"}|${state.me?.identityId || ""}|${flags.join(".")}|${hintText}`;
+  if (state.demoScriptSignature === signature) return;
+  state.demoScriptSignature = signature;
   root.replaceChildren(
     ...steps.map((step, index) => {
       const item = document.createElement("li");
@@ -1359,26 +1396,10 @@ function renderDemoScript() {
       return item;
     }),
   );
-  const currentIndex = flags.indexOf("current");
   const hint = $("#demo-step-hint");
-  if (hint) {
-    if (currentIndex >= 0) {
-      let text = steps[currentIndex].hint;
-      if (commander && !isTrijak191(state.incident) && state.incident && steps[currentIndex].id === "watch") {
-        text = "เทมเพลตนี้ไม่มีเขตแดง — ดูตัวเลขสถานะ แล้วค่อยยุติ";
-      }
-      if (!commander && !state.incident) text = "รอแท็บศูนย์ควบคุมกดเริ่มซ้อม แล้วกดรับทราบบนหน้านี้";
-      hint.textContent = text;
-    } else {
-      hint.textContent = "ซ้อมรอบนี้จบแล้ว — กด «รีเซ็ตข้อมูลจำลอง» ถ้าจะเริ่มรอบใหม่";
-    }
-  }
+  if (hint) hint.textContent = hintText;
   const banner = $("#demo-screen-banner");
-  if (banner) {
-    banner.textContent = commander
-      ? "ข้อความที่ผู้รับแจ้งเห็นบนอีกแท็บ"
-      : "หน้าผู้รับแจ้ง — กราดยิง / ตรีจักร 191";
-  }
+  if (banner) banner.textContent = bannerText;
   const who = $("#demo-advanced-you");
   if (who && state.me) {
     const advanced = ["commander2", "commander3", "commander4", "commander5"].includes(state.me.identityId);

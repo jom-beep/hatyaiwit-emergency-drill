@@ -306,6 +306,9 @@ body:not(.demo-mode) #drill-options { border: 0; padding: 0; background: transpa
 .demo-control-action { margin-bottom: 14px; }
 body.demo-mode #view-switch { display: none !important; }
 body.demo-mode.demo-role-commander #incident-response { display: none !important; }
+body.demo-mode.demo-role-commander #incident-panel.resolved { order: 0; }
+body.demo-mode.demo-role-commander #incident-panel.resolved #incident-response { display: flex !important; }
+body.demo-mode.demo-role-commander #incident-panel.resolved #incident-actions { display: none !important; }
 body.demo-mode.demo-role-commander #incident-panel.idle { display: none; }
 body.demo-mode .hold-button { min-height: 76px; font-size: 18px; }
 body.demo-mode.demo-role-commander #app-panel,
