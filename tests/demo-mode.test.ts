@@ -69,6 +69,12 @@ describe("demo mode must not weaken production auth", () => {
     expect(app).toContain("/api/demo/red-zone");
     expect(app).toContain("/api/demo/confirm-control");
     expect(app).toContain("seedTemplateId: \"TRIJAK_191\"");
+    expect(app).toContain("startIdle: true");
+    expect(html).toContain('id="demo-mode-switch"');
+    expect(html).toContain("ทดสอบคิวแอดมิน (20 วิ)");
+    expect(html).toContain("เปิด 2 แท็บ: แท็บหนึ่งเป็นศูนย์ควบคุม อีกแท็บเป็นผู้รับแจ้ง");
+    expect(html).toContain("เทมเพลตอื่น");
+    expect(html).toContain('id="demo-stepper"');
     expect(app).toContain("sharedStorage: window.localStorage");
     expect(app).toContain("BroadcastChannel");
     expect(app).not.toMatch(/RESOLUTION_APPROVALS_REQUIRED = 1/);

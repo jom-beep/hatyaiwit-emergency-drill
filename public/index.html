@@ -36,17 +36,54 @@
       </div>
     </header>
     <div id="demo-toolbar" class="demo-toolbar demo-only">
-      <p class="demo-toolbar-label">สลับบทบาทจำลอง</p>
-      <div id="demo-identities" class="demo-identities" role="tablist" aria-label="บทบาทจำลอง">
-        <button class="demo-id is-active" type="button" data-identity="commander">ผู้ประกาศ 1</button>
-        <button class="demo-id" type="button" data-identity="commander2">ผู้ประกาศ 2</button>
-        <button class="demo-id" type="button" data-identity="commander3">ผู้ประกาศ 3</button>
-        <button class="demo-id" type="button" data-identity="commander4">ผู้ประกาศ 4</button>
-        <button class="demo-id" type="button" data-identity="commander5">ผู้ประกาศ 5</button>
-        <button class="demo-id" type="button" data-identity="member">ครูผู้รับแจ้ง</button>
+      <div class="demo-toolbar-head">
+        <p class="demo-toolbar-label">เลือกหน้าจอที่จะสาธิต</p>
+        <button id="demo-reset" class="button ghost" type="button">รีเซ็ตข้อมูลจำลอง</button>
       </div>
-      <button id="demo-reset" class="button ghost" type="button">รีเซ็ตข้อมูลจำลอง</button>
-      <p class="demo-toolbar-note">เปิดสองแท็บแล้วสลับบทบาทได้ — หมุดและเขตแดงซิงก์กันในเครื่องนี้</p>
+      <div id="demo-mode-switch" class="demo-mode-switch" role="tablist" aria-label="บทบาทสาธิตหลัก">
+        <button class="demo-mode is-active" type="button" role="tab" data-identity="commander" aria-selected="true">
+          <span class="demo-mode-kicker">หน้าจอที่ 1</span>
+          <strong>ศูนย์ควบคุม</strong>
+          <small>เริ่มซ้อม · ยืนยันควบคุม · วางเขตแดง</small>
+        </button>
+        <button class="demo-mode" type="button" role="tab" data-identity="member" aria-selected="false">
+          <span class="demo-mode-kicker">หน้าจอที่ 2</span>
+          <strong>ผู้รับแจ้ง</strong>
+          <small>รับทราบ · ปักหมุด · เปลี่ยนสถานะ</small>
+        </button>
+      </div>
+      <p class="demo-toolbar-note">เปิด 2 แท็บ: แท็บหนึ่งเป็นศูนย์ควบคุม อีกแท็บเป็นผู้รับแจ้ง</p>
+      <ol id="demo-stepper" class="demo-stepper" aria-label="ลำดับสาธิต">
+        <li class="is-current" data-step="start"><span>1</span>เริ่มซ้อม</li>
+        <li data-step="control"><span>2</span>ยืนยันควบคุม</li>
+        <li data-step="zone"><span>3</span>วางเขตแดงบนผัง</li>
+        <li data-step="watch"><span>4</span>ดูสถานะผู้รับ</li>
+        <li data-step="end"><span>5</span>ยุติ (ต้องคนที่ 2 ยืนยัน)</li>
+      </ol>
+      <p id="demo-step-hint" class="demo-step-hint">กดค้างปุ่มแดง 3 วินาที เพื่อเริ่มซ้อมกราดยิง / ตรีจักร 191</p>
+      <details id="demo-advanced" class="demo-advanced">
+        <summary id="demo-advanced-summary">ทดสอบคิวแอดมิน (20 วิ)</summary>
+        <p class="note">ไม่ใช่เส้นทางสาธิตหลัก ใช้เมื่ออยากให้คนที่ 2–5 รับคิวแทน หรือให้คนที่ 2 กดยืนยันยุติ</p>
+        <div id="demo-identities" class="demo-identities" role="group" aria-label="คิวแอดมินคนที่ 2 ถึง 5">
+          <button class="demo-id" type="button" data-identity="commander2">คนที่ 2</button>
+          <button class="demo-id" type="button" data-identity="commander3">คนที่ 3</button>
+          <button class="demo-id" type="button" data-identity="commander4">คนที่ 4</button>
+          <button class="demo-id" type="button" data-identity="commander5">คนที่ 5</button>
+        </div>
+        <p id="demo-advanced-you" class="note">คนที่ 1 คือปุ่ม «ศูนย์ควบคุม» ด้านบน</p>
+        <section id="admin-queue-panel" class="admin-queue-embedded demo-only hidden">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">คิวควบคุม ตรีจักร 191</span>
+              <h2>ยืนยันควบคุมภายใน 20 วินาที</h2>
+            </div>
+            <span id="admin-queue-timer" class="pill commander-pill">–</span>
+          </div>
+          <ol id="admin-queue-list" class="admin-queue-list"></ol>
+          <p id="admin-queue-status" class="resolve-hint">คนที่ 1 ต้องยืนยันควบคุมก่อน จึงจะวางเขตแดงได้</p>
+          <p class="note">ถ้าไม่กดทัน ระบบจะหมุนไปคนถัดไปจนถึงคนที่ 5 — การยุติการฝึกยังต้องยืนยัน 2 คนตามเดิม</p>
+        </section>
+      </details>
     </div>
 
     <div id="boot-screen" class="boot-screen" role="status">กำลังโหลดระบบ…</div>
@@ -73,6 +110,7 @@
         <section id="incident-panel" class="incident-panel idle" aria-live="assertive">
           <div class="incident-copy">
             <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL</p>
+            <p id="demo-screen-banner" class="demo-screen-banner demo-only">หน้าผู้รับแจ้ง</p>
             <div class="incident-status-row">
               <span id="incident-mode" class="pill">พร้อมรับแจ้งเตือน</span>
               <span id="connection-status" class="connection-status">กำลังเชื่อมต่อ…</span>
@@ -136,7 +174,7 @@
           <div class="section-heading">
             <div>
               <span class="eyebrow">แผนผังโรงเรียนจำลอง</span>
-              <h2>ปักหมุดรายงาน / เขตแดง</h2>
+              <h2 id="map-title">แผนผังซ้อมกราดยิง</h2>
             </div>
             <span id="map-live-pill" class="pill commander-pill">DRILL</span>
           </div>
@@ -147,7 +185,7 @@
           </div>
           <ul id="map-legend" class="map-legend">
             <li><i class="legend-pin"></i>หมุดผู้รับแจ้ง · แสดงเวลาที่ปัก</li>
-            <li><i class="legend-zone"></i>เขตแดงจากผู้ประกาศที่ควบคุม</li>
+            <li><i class="legend-zone"></i>เขตแดงจากศูนย์ควบคุม</li>
           </ul>
           <ul id="map-pin-list" class="map-pin-list"></ul>
         </section>
@@ -225,51 +263,60 @@
           <p class="note">กดรับเรื่องเพื่อหยุดการไล่ระดับไปยังผู้ประกาศคนถัดไป</p>
         </section>
 
-        <section id="admin-queue-panel" class="card commander demo-only hidden">
-          <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL · คิวผู้ประกาศแยกจากการยุติ 2 คน</p>
-          <div class="section-heading">
-            <div>
-              <span class="eyebrow">คิวควบคุม ตรีจักร 191</span>
-              <h2>ยืนยันควบคุมภายใน 20 วินาที</h2>
-            </div>
-            <span id="admin-queue-timer" class="pill commander-pill">–</span>
-          </div>
-          <ol id="admin-queue-list" class="admin-queue-list"></ol>
-          <p id="admin-queue-status" class="resolve-hint">ผู้ประกาศลำดับที่ 1 ต้องยืนยันควบคุมก่อน จึงจะวางเขตแดงได้</p>
-          <button id="confirm-control" class="button warning wide" type="button">ยืนยันควบคุมการฝึกซ้อมนี้</button>
-          <p class="note">ถ้าไม่กดทัน ระบบจะหมุนไปผู้ประกาศคนถัดไปจนถึงคนที่ 5 — การยุติการฝึกยังต้องยืนยัน 2 คนตามเดิม</p>
-        </section>
-
         <section id="commander-panel" class="card commander">
           <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL</p>
+          <p id="demo-commander-banner" class="demo-screen-banner demo-only">หน้าศูนย์ควบคุม — สาธิตกราดยิง / ตรีจักร 191</p>
           <div class="section-heading">
             <div>
-              <span class="eyebrow">ผู้ประกาศเท่านั้น</span>
+              <span class="eyebrow prod-only">ผู้ประกาศเท่านั้น</span>
+              <span class="eyebrow demo-only">ศูนย์ควบคุม</span>
               <h2 id="commander-heading">เริ่มการฝึกซ้อม</h2>
             </div>
             <span class="pill commander-pill">ผู้มีสิทธิ์</span>
           </div>
 
           <div id="commander-start">
-            <div id="drill-templates" class="template-grid demo-only"></div>
-            <div class="grid commander-fields">
-              <div>
-                <label for="drill-type">รูปแบบการฝึกซ้อม</label>
-                <select id="drill-type">
-                  <option value="LOCKDOWN">ปิดพื้นที่</option>
-                  <option value="EVACUATE">อพยพ</option>
-                  <option value="SHELTER">อยู่ในพื้นที่ปลอดภัย</option>
-                  <option value="MEDICAL">เหตุการแพทย์</option>
-                  <option value="INFORMATION">ประกาศทั่วไป</option>
-                </select>
-              </div>
-              <div>
-                <label for="drill-zone">พื้นที่รับประกาศ</label>
-                <select id="drill-zone"></select>
-              </div>
+            <div class="drill-primary demo-only">
+              <p class="eyebrow">เหตุหลักของรอบสาธิต</p>
+              <h3 id="drill-primary-title">กราดยิง / ตรีจักร 191</h3>
+              <p id="drill-primary-copy">ปุ่มด้านล่างเริ่มเฉพาะเหตุนี้</p>
             </div>
-            <label for="drill-instruction">คำแนะนำที่โรงเรียนอนุมัติ</label>
-            <textarea id="drill-instruction" rows="3" maxlength="240">นี่คือการฝึกซ้อม กรุณาปฏิบัติตามแผนฉุกเฉินของโรงเรียนและรอคำแนะนำเพิ่มเติม</textarea>
+            <details id="other-templates" class="demo-other-templates demo-only">
+              <summary>เทมเพลตอื่น</summary>
+              <div id="drill-templates" class="template-grid"></div>
+              <button id="use-trijak" class="button ghost wide hidden" type="button">กลับไปกราดยิง / ตรีจักร 191</button>
+            </details>
+            <details id="drill-options" class="drill-options" open>
+              <summary class="demo-only">ปรับพื้นที่หรือคำแนะนำ</summary>
+              <div class="grid commander-fields">
+                <div id="drill-type-field" class="prod-only">
+                  <label for="drill-type">รูปแบบการฝึกซ้อม</label>
+                  <select id="drill-type">
+                    <option value="LOCKDOWN">ปิดพื้นที่</option>
+                    <option value="EVACUATE">อพยพ</option>
+                    <option value="SHELTER">อยู่ในพื้นที่ปลอดภัย</option>
+                    <option value="MEDICAL">เหตุการแพทย์</option>
+                    <option value="INFORMATION">ประกาศทั่วไป</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="drill-zone">พื้นที่รับประกาศ</label>
+                  <select id="drill-zone"></select>
+                </div>
+              </div>
+              <label for="drill-instruction">คำแนะนำที่โรงเรียนอนุมัติ</label>
+              <textarea id="drill-instruction" rows="3" maxlength="240">นี่คือการฝึกซ้อม กรุณาปฏิบัติตามแผนฉุกเฉินของโรงเรียนและรอคำแนะนำเพิ่มเติม</textarea>
+            </details>
+            <script>
+              (function () {
+                var path = location.pathname.replace(/\/+$/, "");
+                var demo = path === "/demo" || new URLSearchParams(location.search).get("demo") === "1";
+                if (!demo) return;
+                document.body.classList.add("demo-mode");
+                var options = document.getElementById("drill-options");
+                if (options) options.removeAttribute("open");
+              })();
+            </script>
             <div class="hold-wrap">
               <button id="activate-drill" class="button hold-button" type="button">
                 <span>กดค้าง 3 วินาทีเพื่อเริ่มฝึกซ้อม</span>
@@ -280,14 +327,21 @@
           </div>
 
           <div id="commander-end" class="commander-end hidden">
-            <p id="resolve-hint" class="resolve-hint">การยุติต้องได้รับการยืนยันจากผู้ประกาศ 2 คนที่ต่างกัน</p>
-            <p class="note demo-only">โหมดสาธิต: สลับเป็น «ผู้ประกาศ 2» ด้านบน แล้วกดยืนยันอีกครั้ง</p>
-            <div id="commander-update" class="commander-update demo-only">
-              <label for="update-instruction">คำสั่งเพิ่มจากศูนย์ควบคุม</label>
-              <textarea id="update-instruction" rows="2" maxlength="240" placeholder="พิมพ์คำสั่งสั้น เช่น รอในห้องต่อไป จนกว่าจะมีคำสั่งใหม่"></textarea>
-              <button id="push-update" class="button secondary wide" type="button">ส่งคำสั่งใหม่ (เพิ่มเวอร์ชัน)</button>
-              <p class="note">ผู้รับแจ้งจะเห็นข้อความล่าสุดชัดเจน และเปิดดูประวัติเวอร์ชันก่อนหน้าได้</p>
+            <div id="demo-control-action" class="demo-control-action demo-only hidden">
+              <p id="demo-control-status" class="resolve-hint">กดยืนยันควบคุมภายใน 20 วินาที แล้วจึงวางเขตแดงบนผังได้</p>
+              <button id="confirm-control" class="button warning wide" type="button">ยืนยันควบคุมการฝึกซ้อมนี้</button>
             </div>
+            <p id="resolve-hint" class="resolve-hint">การยุติต้องได้รับการยืนยันจากผู้ประกาศ 2 คนที่ต่างกัน</p>
+            <p class="note demo-only">ขั้นสุดท้าย: เปิด «ทดสอบคิวแอดมิน (20 วิ)» เลือกคนที่ 2 แล้วกดยืนยันอีกครั้ง</p>
+            <details id="commander-update-wrap" class="demo-only">
+              <summary>ส่งคำสั่งเพิ่ม (ไม่จำเป็นในรอบสาธิตหลัก)</summary>
+              <div id="commander-update" class="commander-update demo-only">
+                <label for="update-instruction">คำสั่งเพิ่มจากศูนย์ควบคุม</label>
+                <textarea id="update-instruction" rows="2" maxlength="240" placeholder="พิมพ์คำสั่งสั้น เช่น รอในห้องต่อไป จนกว่าจะมีคำสั่งใหม่"></textarea>
+                <button id="push-update" class="button secondary wide" type="button">ส่งคำสั่งใหม่ (เพิ่มเวอร์ชัน)</button>
+                <p class="note">ผู้รับแจ้งจะเห็นข้อความล่าสุดชัดเจน และเปิดดูประวัติเวอร์ชันก่อนหน้าได้</p>
+              </div>
+            </details>
             <button id="resolve-drill" class="button secondary wide" type="button">ยืนยันการยุติการฝึกซ้อม</button>
           </div>
         </section>
@@ -297,15 +351,15 @@
           <div class="section-heading">
             <div>
               <span class="eyebrow">ศูนย์ควบคุม</span>
-              <h2>ภาพรวมการส่งข้อความ</h2>
+              <h2><span class="prod-only">ภาพรวมการส่งข้อความ</span><span class="demo-only">สถานะผู้รับแจ้ง</span></h2>
             </div>
             <button id="refresh-dashboard" class="button ghost" type="button">รีเฟรช</button>
           </div>
           <p id="dashboard-empty" class="empty-state">ยังไม่มีการฝึกซ้อม — จำนวนรับทราบจะขึ้นเมื่อเริ่มประกาศ</p>
           <div class="metrics">
-            <div><strong id="metric-ready">–</strong><span>อุปกรณ์พร้อม</span></div>
-            <div><strong id="metric-sent">–</strong><span>ส่ง Push สำเร็จ</span></div>
-            <div><strong id="metric-ack">–</strong><span>รับทราบ</span></div>
+            <div><strong id="metric-ready">–</strong><span class="prod-only">อุปกรณ์พร้อม</span><span class="demo-only">คนในรายชื่อ</span></div>
+            <div class="prod-only"><strong id="metric-sent">–</strong><span>ส่ง Push สำเร็จ</span></div>
+            <div><strong id="metric-ack">–</strong><span class="prod-only">รับทราบ</span><span class="demo-only">ตอบกลับแล้ว</span></div>
             <div><strong id="metric-help">–</strong><span>ต้องการช่วยเหลือ</span></div>
           </div>
           <div id="demo-status-metrics" class="metrics demo-metrics demo-only">
@@ -334,8 +388,9 @@
           <p class="drill-stamp">นี่คือการฝึกซ้อม · DRILL</p>
           <div class="section-heading">
             <div>
-              <span class="eyebrow">สรุปหลังซ้อม</span>
-              <h2>After-action</h2>
+              <span class="eyebrow">หลังยุติการซ้อม</span>
+              <h2>สรุปหลังซ้อม</h2>
+              <p class="sr-only">After-action</p>
             </div>
           </div>
           <p id="afteraction-title" class="afteraction-title"></p>

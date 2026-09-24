@@ -331,6 +331,28 @@ function startTrijak(store) {
   });
 }
 
+describe("presenter starts from an idle ตรีจักร screen", () => {
+  it("does not seed a live incident when startIdle is set, and reset returns to idle", () => {
+    const store = createDemoStore({ now: () => NOW, startIdle: true, seedTemplateId: TRIJAK_TEMPLATE_ID });
+    expect(store.getActive()).toBeNull();
+    expect(store.getMap().pins).toEqual([]);
+    expect(store.getMap().redZone).toBeNull();
+    const token = store.createActionToken().token;
+    const activated = store.activateDrill({
+      actionToken: token,
+      mode: "DRILL",
+      templateId: TRIJAK_TEMPLATE_ID,
+      zone: "ALL",
+      instruction: DRILL_TEMPLATES.find((item) => item.id === TRIJAK_TEMPLATE_ID).instruction,
+    });
+    expect(isTrijak191(activated.incident)).toBe(true);
+    store.reset();
+    expect(store.getActive()).toBeNull();
+    expect(store.getIdentityId()).toBe("commander");
+    expect(store.getMap().redZone).toBeNull();
+  });
+});
+
 describe("ตรีจักร 191 map, red zone, and admin queue", () => {
   it("keeps five demo admins and 20-second queue steps", () => {
     expect(DEMO_ADMINS).toHaveLength(5);
