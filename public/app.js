@@ -112,6 +112,10 @@ const state = {
   map: { pins: [], redZone: null },
   adminQueue: null,
   queueTimer: null,
+  demoAdvancedNudged: false,
+  demoScriptSignature: "",
+  adminQueueSig: "",
+  mapSig: "",
 };
 
 function isDemoMode() {
@@ -240,6 +244,11 @@ async function refreshReadiness() {
 
 function refreshInstallBanner(ready) {
   const banner = $("#install-banner");
+  if (isDemoMode()) {
+    banner?.classList.add("hidden");
+    document.body.classList.remove("has-install-banner");
+    return;
+  }
   const hide = Boolean(ready || isStandalone() || sessionStorage.getItem("hyw-install-dismissed") === "1");
   if (hide) {
     banner.classList.add("hidden");
@@ -500,7 +509,7 @@ function renderAllClear(incident) {
     : "ศูนย์ควบคุมประกาศยุติการฝึกซ้อมแล้ว";
   const sameIncident = state.ackedIncidentId === incident.id && state.ackResponse;
   if (state.me?.role === "commander") {
-    $("#all-clear-ack").textContent = "สลับเป็นครูผู้รับแจ้งเพื่อดูเวลาที่กดรับทราบของตนเอง";
+    $("#all-clear-ack").textContent = "เปิดแท็บผู้รับแจ้งเพื่อดูเวลาที่คนนั้นกดรับทราบ";
     $("#all-clear-status").textContent = "";
   } else if (sameIncident) {
     const first = formatAckDateTime(state.ackAt);
@@ -539,11 +548,13 @@ function renderAckStatus() {
       helpButton.classList.add("hidden");
       awayButton.classList.add("hidden");
       ackButton.classList.add("hidden");
+      renderDemoScript();
     } else if (sameIncident && state.ackResponse) {
       const when = formatAckTime(state.ackAt);
       box.classList.remove("hidden");
       box.textContent = when ? `คุณรับทราบครั้งแรกเมื่อ ${when} น.` : "คุณตอบรับแล้วในรอบนี้";
     }
+    renderDemoScript();
     return;
   }
 
@@ -560,6 +571,7 @@ function renderAckStatus() {
     } else {
       helpButton.classList.remove("hidden");
     }
+    renderDemoScript();
     return;
   }
 
@@ -581,6 +593,7 @@ function renderAckStatus() {
     else if (state.ackResponse === "SAFE") box.textContent = "สถานะปัจจุบัน: ปลอดภัย — กดเปลี่ยนได้ตลอดจนกว่าจะยุติ";
     else if (state.ackResponse === "AWAY") box.textContent = "สถานะปัจจุบัน: ไม่อยู่ในพื้นที่ — ไม่ใช่ผู้ที่ไม่ตอบ";
     else box.textContent = "รับทราบแล้ว — เลือก ปลอดภัย / ต้องการช่วยเหลือ / ไม่อยู่ในพื้นที่";
+    renderDemoScript();
     return;
   }
 
@@ -627,6 +640,7 @@ function renderIncident(incident, options = {}) {
     renderAllClear(null);
     renderTrijakMap(null);
     renderAdminQueue(null);
+    renderDemoScript();
     return;
   }
   const resolved = incident.status === "RESOLVED";
@@ -672,11 +686,22 @@ function renderIncident(incident, options = {}) {
     const heading = $("#commander-heading");
     if (heading) heading.textContent = resolved ? "เริ่มการฝึกซ้อม" : "ยุติการฝึกซ้อม";
     const hint = $("#resolve-hint");
-    if (hint) hint.textContent = pending
-      ? "มีผู้ประกาศยืนยันแล้ว 1 คน ต้องการอีก 1 คนจึงจะยุติ"
-      : "การยุติต้องได้รับการยืนยันจากผู้ประกาศ 2 คนที่ต่างกัน";
+    if (hint) {
+      hint.textContent = state.demoApi
+        ? pending
+          ? "คนที่ 1 ยืนยันแล้ว — เปิด «ทดสอบคิวแอดมิน (20 วิ)» เลือกคนที่ 2 แล้วกดยืนยันอีกครั้ง"
+          : "การยุติต้องมีคนจากศูนย์ควบคุมยืนยัน 2 คน (คนละคน)"
+        : pending
+          ? "มีผู้ประกาศยืนยันแล้ว 1 คน ต้องการอีก 1 คนจึงจะยุติ"
+          : "การยุติต้องได้รับการยืนยันจากผู้ประกาศ 2 คนที่ต่างกัน";
+    }
     $("#dashboard-empty")?.classList.toggle("hidden", true);
   }
+  if (demo) {
+    const zoneName = state.config?.zones?.find((zone) => zone.id === incident.zone)?.name || incident.zone;
+    $("#incident-meta").textContent = `พื้นที่ ${zoneName} · นี่คือการฝึกซ้อม`;
+  }
+  renderDemoScript();
 }
 
 function applyMapPayload(payload = {}) {
@@ -698,9 +723,13 @@ function renderTrijakMap(incident) {
   if (!panel) return;
   const live = Boolean(state.demoApi && incidentIsLive(incident) && isTrijak191(incident));
   panel.classList.toggle("hidden", !live);
+  const mapSig = `${live}|${state.me?.identityId || ""}|${state.adminQueue?.controllerId || ""}|${JSON.stringify(state.map || {})}`;
+  if (state.mapSig === mapSig) return;
+  state.mapSig = mapSig;
   if (!live) {
     $("#map-markers")?.replaceChildren();
     $("#map-pin-list")?.replaceChildren();
+    renderDemoScript();
     return;
   }
   const map = state.map || { pins: [], redZone: null };
@@ -708,14 +737,16 @@ function renderTrijakMap(incident) {
   const isCommander = state.me?.role === "commander";
   const isController = Boolean(queue?.controllerId && queue.controllerId === state.me?.identityId);
   const hint = $("#map-hint");
+  const mapTitle = $("#map-title");
+  if (mapTitle) mapTitle.textContent = isCommander ? "วางเขตแดงบนผัง" : "ปักหมุดบนผัง";
   if (isCommander && isController) {
-    hint.textContent = "คุณเป็นผู้ควบคุม — แตะแผนที่เพื่อวางหรือย้ายเขตแดง";
+    hint.textContent = "คุณควบคุมอยู่ — แตะผังเพื่อวางหรือย้ายเขตแดง";
   } else if (isCommander) {
     hint.textContent = queue?.controllerName
-      ? `${queue.controllerName} กำลังควบคุมเขตแดง — ดูแผนที่ได้อย่างเดียว`
-      : "รอคิวยืนยันควบคุม 20 วินาทีก่อน จึงจะวางเขตแดงได้";
+      ? `${queue.controllerName} กำลังวางเขตแดง — หน้านี้ดูได้อย่างเดียว`
+      : "กด «ยืนยันควบคุม» ให้ทัน 20 วินาที แล้วจึงแตะผังเพื่อวางเขตแดง";
   } else {
-    hint.textContent = "แตะแผนที่เพื่อปักหมุดรายงานตำแหน่งเหตุ (จำลอง) — แตะอีกครั้งเพื่อย้ายหมุด";
+    hint.textContent = "แตะผังเพื่อปักหมุดตำแหน่งของคุณ — แตะอีกจุดเพื่อย้ายหมุด เวลาจะติดไปกับหมุด";
   }
 
   const markers = $("#map-markers");
@@ -747,6 +778,7 @@ function renderTrijakMap(incident) {
   const list = $("#map-pin-list");
   if (!map.pins?.length && !map.redZone) {
     list.replaceChildren();
+    renderDemoScript();
     return;
   }
   const items = [];
@@ -761,6 +793,7 @@ function renderTrijakMap(incident) {
     items.push(row);
   }
   list.replaceChildren(...items);
+  renderDemoScript();
 }
 
 function renderAdminQueue(incident) {
@@ -768,11 +801,14 @@ function renderAdminQueue(incident) {
   if (!panel) return;
   const live = Boolean(state.demoApi && incidentIsLive(incident) && isTrijak191(incident) && state.me?.role === "commander");
   panel.classList.toggle("hidden", !live);
+  $("#demo-control-action")?.classList.toggle("hidden", !live);
   if (!live) {
     if (state.queueTimer) {
       window.clearInterval(state.queueTimer);
       state.queueTimer = null;
     }
+    state.adminQueueSig = "";
+    renderDemoScript();
     return;
   }
   if (!state.queueTimer) {
@@ -785,8 +821,15 @@ function renderAdminQueue(incident) {
   const timer = $("#admin-queue-timer");
   const status = $("#admin-queue-status");
   const button = $("#confirm-control");
+  const second = Math.ceil((queue?.remainingMs || 0) / 1000);
+  const queueSig = queue
+    ? `${queue.controllerId}|${queue.currentIndex}|${queue.exhausted}|${second}|${state.me?.identityId || ""}`
+    : "empty";
+  if (state.adminQueueSig === queueSig) return;
+  state.adminQueueSig = queueSig;
   if (!queue) {
     list.replaceChildren();
+    renderDemoScript();
     return;
   }
   list.replaceChildren(
@@ -803,22 +846,38 @@ function renderAdminQueue(incident) {
       return item;
     }),
   );
+  const controlStatus = $("#demo-control-status");
   if (queue.controllerId) {
     timer.textContent = "มีผู้ควบคุมแล้ว";
-    status.textContent = `${queue.controllerName || "ผู้ประกาศ"} เป็นผู้ควบคุมเขตแดง — การยุติยังต้องยืนยัน 2 คน`;
-    button.disabled = true;
-    button.textContent = "ยืนยันควบคุมแล้ว";
+    const claimed = `${queue.controllerName || "ศูนย์ควบคุม"} ควบคุมเขตแดงแล้ว — ไปวางบนผังได้`;
+    status.textContent = claimed;
+    if (controlStatus) controlStatus.textContent = claimed;
+    if (button) {
+      button.disabled = true;
+      button.textContent = "ยืนยันควบคุมแล้ว";
+    }
   } else {
     const seconds = Math.ceil((queue.remainingMs || 0) / 1000);
     timer.textContent = queue.exhausted ? "ครบคิวแล้ว" : `เหลือ ${seconds} วินาที`;
     const current = queue.currentAdmin;
     const yours = current?.id === state.me?.identityId;
-    status.textContent = yours
+    const waiting = yours
       ? `${current.displayName} (คุณ) ต้องยืนยันควบคุมภายใน ${seconds} วินาที`
-      : `รอ ${current?.displayName || "ผู้ประกาศ"} ยืนยันควบคุม — สลับบทบาทด้านบนถ้าต้องการกดแทน`;
-    button.disabled = !yours;
-    button.textContent = yours ? "ยืนยันควบคุมการฝึกซ้อมนี้" : `รอคิวของ ${current?.displayName || "ผู้ประกาศ"}`;
+      : `รอ ${current?.displayName || "คนถัดไป"} — เปิด «ทดสอบคิวแอดมิน (20 วิ)» ถ้าจะกดแทน`;
+    status.textContent = waiting;
+    if (controlStatus) controlStatus.textContent = waiting;
+    if (button) {
+      button.disabled = !yours;
+      button.textContent = yours ? "ยืนยันควบคุมการฝึกซ้อมนี้" : `รอคิวของ ${current?.displayName || "คนถัดไป"}`;
+    }
   }
+  const summary = $("#demo-advanced-summary");
+  if (summary) {
+    if (queue.controllerId) summary.textContent = "ทดสอบคิวแอดมิน (20 วิ) · มีคนควบคุมแล้ว";
+    else if (queue.exhausted) summary.textContent = "ทดสอบคิวแอดมิน (20 วิ) · ครบคิวแล้ว";
+    else summary.textContent = `ทดสอบคิวแอดมิน (20 วิ) · เหลือ ${Math.ceil((queue.remainingMs || 0) / 1000)} วิ`;
+  }
+  renderDemoScript();
 }
 
 async function refreshTrijakRealtime(options = {}) {
@@ -1209,8 +1268,10 @@ function renderDrillTemplates() {
   const root = $("#drill-templates");
   if (!root || !state.demoApi) return;
   const templates = state.config?.templates || [];
+  const primary = templates.find((item) => item.id === "TRIJAK_191") || templates[0];
+  const others = templates.filter((item) => item.id !== primary?.id);
   root.replaceChildren(
-    ...templates.map((template) => {
+    ...others.map((template) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "template-card";
@@ -1224,17 +1285,145 @@ function renderDrillTemplates() {
       return button;
     }),
   );
-  const current = templates.find((item) => item.id === state.selectedTemplateId) || templates[0];
+  const current = templates.find((item) => item.id === state.selectedTemplateId) || primary;
   if (current) selectDrillTemplate(current);
 }
 
 function selectDrillTemplate(template) {
   state.selectedTemplateId = template.id;
   const typeSelect = $("#drill-type");
-  if (typeSelect.querySelector(`option[value="${template.type}"]`)) typeSelect.value = template.type;
-  $("#drill-instruction").value = template.instruction;
+  if (typeSelect?.querySelector(`option[value="${template.type}"]`)) typeSelect.value = template.type;
+  const instruction = $("#drill-instruction");
+  if (instruction) instruction.value = template.instruction;
   for (const button of document.querySelectorAll(".template-card")) {
     button.classList.toggle("is-active", button.dataset.template === template.id);
+  }
+  const primary = template.id === "TRIJAK_191";
+  const holdLabel = $("#activate-drill span");
+  if (holdLabel && state.demoApi) {
+    holdLabel.textContent = primary
+      ? "กดค้าง 3 วินาทีเพื่อเริ่มซ้อม กราดยิง / ตรีจักร 191"
+      : `กดค้าง 3 วินาทีเพื่อเริ่มซ้อม ${template.labelTh}`;
+  }
+  const title = $("#drill-primary-title");
+  const copy = $("#drill-primary-copy");
+  if (title) title.textContent = primary ? "กราดยิง / ตรีจักร 191" : template.labelTh;
+  if (copy) {
+    copy.textContent = primary
+      ? "ปุ่มด้านล่างเริ่มเฉพาะเหตุนี้"
+      : "นี่ไม่ใช่เส้นทางสาธิตหลัก — กด «กลับไปกราดยิง / ตรีจักร 191» ได้";
+  }
+  $("#use-trijak")?.classList.toggle("hidden", primary || !state.demoApi);
+}
+
+const CONTROL_SCRIPT = [
+  { id: "start", label: "เริ่มซ้อม", hint: "กดค้างปุ่มแดง 3 วินาที เพื่อเริ่มซ้อมกราดยิง / ตรีจักร 191" },
+  { id: "control", label: "ยืนยันควบคุม", hint: "กด «ยืนยันควบคุมการฝึกซ้อมนี้» ภายใน 20 วินาที" },
+  { id: "zone", label: "วางเขตแดงบนผัง", hint: "แตะแผนผังเพื่อวางเขตแดง แตะอีกจุดถ้าจะย้าย" },
+  { id: "watch", label: "ดูสถานะผู้รับ", hint: "ดูตัวเลขตอบกลับด้านล่าง แล้วสลับไปแท็บผู้รับแจ้ง" },
+  { id: "end", label: "ยุติ (ต้องคนที่ 2 ยืนยัน)", hint: "กดยุติที่หน้านี้ แล้วเปิด «ทดสอบคิวแอดมิน (20 วิ)» เลือกคนที่ 2 แล้วกดยืนยันอีกครั้ง" },
+];
+
+const RECIPIENT_SCRIPT = [
+  { id: "ack", label: "รับทราบ", hint: "พออีกแท็บเริ่มซ้อมแล้ว กดปุ่มรับทราบบนหน้านี้" },
+  { id: "pin", label: "ปักหมุดบนผัง", hint: "แตะแผนผังเพื่อปักหมุดตำแหน่งของคุณ" },
+  { id: "status", label: "เปลี่ยนสถานะ", hint: "กด ปลอดภัย หรือ ต้องการช่วยเหลือ หรือ ไม่อยู่ในพื้นที่" },
+  { id: "zone", label: "ดูเขตแดง", hint: "ดูวงกลมเขตแดงบนผัง — มาจากแท็บศูนย์ควบคุม" },
+];
+
+function commanderScriptFlags() {
+  const incident = state.incident;
+  if (!incident) return ["current", "todo", "todo", "todo", "todo"];
+  if (incident.status === "RESOLVED") return ["done", "done", "done", "done", "done"];
+  const trijak = isTrijak191(incident);
+  const controlled = !trijak || Boolean(state.adminQueue?.controllerId);
+  const zoned = !trijak || Boolean(state.map?.redZone);
+  if (!controlled) return ["done", "current", "todo", "todo", "todo"];
+  if (!zoned) return ["done", "done", "current", "todo", "todo"];
+  if (incident.status !== "RESOLUTION_PENDING") return ["done", "done", "done", "current", "todo"];
+  return ["done", "done", "done", "done", "current"];
+}
+
+function recipientScriptFlags() {
+  const incident = state.incident;
+  if (incident?.status === "RESOLVED") return ["done", "done", "done", "done"];
+  if (!incidentIsLive(incident)) return ["current", "todo", "todo", "todo"];
+  const acked = Boolean(state.ackResponse);
+  const pinned = (state.map?.pins || []).some((pin) => pin.id === state.me?.personId);
+  const changed = acked && state.ackResponse !== "ACK";
+  const seen = Boolean(state.map?.redZone);
+  if (!acked) return ["current", "todo", "todo", "todo"];
+  if (!pinned) return ["done", "current", "todo", "todo"];
+  if (!changed) return ["done", "done", "current", "todo"];
+  if (!seen) return ["done", "done", "done", "current"];
+  return ["done", "done", "done", "done"];
+}
+
+function renderDemoScript() {
+  const root = $("#demo-stepper");
+  if (!root || !state.demoApi) return;
+  const commander = state.me?.role === "commander";
+  const steps = commander ? CONTROL_SCRIPT : RECIPIENT_SCRIPT;
+  const flags = commander ? commanderScriptFlags() : recipientScriptFlags();
+  const currentIndex = flags.indexOf("current");
+  let hintText = incidentIsLive(state.incident)
+    ? "ทำครบขั้นตอนบนหน้านี้แล้ว — รออีกแท็บกดยุติ"
+    : commander
+      ? "ซ้อมรอบนี้จบแล้ว หมุดและเขตแดงถูกล้างแล้ว — กดค้างปุ่มแดงเพื่อเริ่มรอบใหม่"
+      : "ซ้อมรอบนี้จบแล้ว หมุดและเขตแดงถูกล้างแล้ว";
+  if (currentIndex >= 0) {
+    hintText = steps[currentIndex].hint;
+    if (commander && state.incident && !isTrijak191(state.incident) && steps[currentIndex].id === "watch") {
+      hintText = "เทมเพลตนี้ไม่มีเขตแดง — ดูตัวเลขสถานะ แล้วค่อยยุติ";
+    }
+    if (!commander && !state.incident) hintText = "รอแท็บศูนย์ควบคุมกดเริ่มซ้อม แล้วกดรับทราบบนหน้านี้";
+  }
+  const bannerText = commander
+    ? "ข้อความที่ผู้รับแจ้งเห็นบนอีกแท็บ"
+    : "หน้าผู้รับแจ้ง — กราดยิง / ตรีจักร 191";
+  const signature = `${commander ? "c" : "m"}|${state.me?.identityId || ""}|${flags.join(".")}|${hintText}`;
+  if (state.demoScriptSignature === signature) return;
+  state.demoScriptSignature = signature;
+  root.replaceChildren(
+    ...steps.map((step, index) => {
+      const item = document.createElement("li");
+      item.dataset.step = step.id;
+      const flag = flags[index] || "todo";
+      item.className = flag === "done" ? "is-done" : flag === "current" ? "is-current" : "is-todo";
+      const num = document.createElement("span");
+      num.textContent = String(index + 1);
+      item.append(num, document.createTextNode(step.label));
+      return item;
+    }),
+  );
+  const hint = $("#demo-step-hint");
+  if (hint) hint.textContent = hintText;
+  const banner = $("#demo-screen-banner");
+  if (banner) banner.textContent = bannerText;
+  const who = $("#demo-advanced-you");
+  if (who && state.me) {
+    const advanced = ["commander2", "commander3", "commander4", "commander5"].includes(state.me.identityId);
+    who.textContent = advanced
+      ? `ตอนนี้คือ${state.me.displayName} — กด «ศูนย์ควบคุม» ด้านบนเพื่อกลับเป็นคนที่ 1`
+      : "คนที่ 1 คือปุ่ม «ศูนย์ควบคุม» ด้านบน";
+  }
+  if (commander) {
+    const heading = $("#commander-heading");
+    const incident = state.incident;
+    if (heading) {
+      if (!incident || incident.status === "RESOLVED") heading.textContent = "เริ่มซ้อมกราดยิง / ตรีจักร 191";
+      else if (incident.status === "RESOLUTION_PENDING") heading.textContent = "รอยืนยันยุติจากคนที่ 2";
+      else if (isTrijak191(incident) && !state.adminQueue?.controllerId) heading.textContent = "ยืนยันควบคุมภายใน 20 วินาที";
+      else if (isTrijak191(incident) && !state.map?.redZone) heading.textContent = "วางเขตแดงบนผัง";
+      else heading.textContent = "ดูสถานะ แล้วยุติการซ้อม";
+    }
+    const pending = incident?.status === "RESOLUTION_PENDING";
+    const advanced = $("#demo-advanced");
+    if (pending && !state.demoAdvancedNudged) {
+      state.demoAdvancedNudged = true;
+      advanced?.setAttribute("open", "");
+    }
+    if (!pending) state.demoAdvancedNudged = false;
   }
 }
 
@@ -1467,15 +1656,35 @@ function applyDemoIdentity(me) {
   state.ackedIncidentId = me.ackedIncidentId || null;
   state.ackAt = me.ackAt || null;
   state.ackUpdatedAt = me.ackUpdatedAt || me.ackAt || null;
-  const roleLabel = ROLE_LABEL[me.role] || me.role;
-  $("#account-label").textContent = `${me.displayName || me.email} · ${roleLabel}`;
+  const queued = ["commander2", "commander3", "commander4", "commander5"].includes(me.identityId);
+  const roleLabel = me.role === "commander"
+    ? queued
+      ? `ศูนย์ควบคุม · ${me.displayName}`
+      : "ศูนย์ควบคุม · คนที่ 1"
+    : "ผู้รับแจ้ง";
+  $("#account-label").textContent = roleLabel;
+  document.body.classList.toggle("demo-role-commander", me.role === "commander");
+  document.body.classList.toggle("demo-role-member", me.role !== "commander");
+  for (const button of document.querySelectorAll(".demo-mode")) {
+    const active = me.role === "commander"
+      ? button.dataset.identity === "commander"
+      : button.dataset.identity === "member";
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  const controlHint = document.querySelector('.demo-mode[data-identity="commander"] small');
+  if (controlHint) {
+    controlHint.textContent = queued
+      ? `กำลังใช้${me.displayName} — กดเพื่อกลับเป็นคนที่ 1`
+      : "เริ่มซ้อม · ยืนยันควบคุม · วางเขตแดง";
+  }
   for (const button of document.querySelectorAll(".demo-id")) {
     button.classList.toggle("is-active", button.dataset.identity === me.identityId);
   }
-  $("#view-switch").classList.remove("hidden");
   if (me.role === "commander") setView("admin");
   else setView("user");
   renderAckStatus();
+  renderDemoScript();
 }
 
 async function switchDemoIdentity(id) {
@@ -1510,6 +1719,7 @@ async function init() {
       storage: window.sessionStorage,
       sharedStorage: window.localStorage,
       seedTemplateId: "TRIJAK_191",
+      startIdle: true,
       broadcast: "BroadcastChannel" in window ? new BroadcastChannel("hyw-demo-v1") : null,
     });
     document.body.classList.add("demo-mode");
@@ -1630,9 +1840,15 @@ $("#guide-close").addEventListener("click", closeInstallGuide);
 $("#guide-tab-ios").addEventListener("click", () => setGuideTab("ios"));
 $("#guide-tab-android").addEventListener("click", () => setGuideTab("android"));
 $("#demo-reset").addEventListener("click", resetDemo);
-$("#demo-identities").addEventListener("click", (event) => {
+function onDemoIdentityClick(event) {
   const button = event.target.closest("[data-identity]");
   if (button) switchDemoIdentity(button.dataset.identity);
+}
+$("#demo-identities")?.addEventListener("click", onDemoIdentityClick);
+$("#demo-mode-switch")?.addEventListener("click", onDemoIdentityClick);
+$("#use-trijak")?.addEventListener("click", () => {
+  const template = state.config?.templates?.find((item) => item.id === "TRIJAK_191");
+  if (template) selectDrillTemplate(template);
 });
 $("#campus-map")?.addEventListener("click", handleCampusMapClick);
 $("#confirm-control")?.addEventListener("click", confirmControl);

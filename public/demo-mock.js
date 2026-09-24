@@ -11,7 +11,7 @@ export function isDemoLocation(pathname = "", search = "") {
 
 export const TRIJAK_TEMPLATE_ID = "TRIJAK_191";
 export const ADMIN_QUEUE_STEP_MS = 20_000;
-export const SHARED_DEMO_STORAGE_KEY = "hyw-demo-shared-v2";
+export const SHARED_DEMO_STORAGE_KEY = "hyw-demo-shared-v3";
 export const IDENTITY_DEMO_STORAGE_KEY = "hyw-demo-identity";
 
 export const DRILL_TEMPLATES = [
@@ -470,6 +470,7 @@ export function createDemoStore(options = {}) {
   const broadcast = options.broadcast ?? null;
   const listeners = new Set();
   const seedTemplateId = options.seedTemplateId ?? "FIRE";
+  const startIdle = options.startIdle === true;
 
   let people = seedPeople();
   let identityId = "commander";
@@ -695,7 +696,7 @@ export function createDemoStore(options = {}) {
   }
 
   restoreIdentity();
-  if (!restoreShared()) seedActiveDrill();
+  if (!restoreShared() && !startIdle) seedActiveDrill();
 
   if (typeof window !== "undefined" && sharedStorage === window.localStorage) {
     window.addEventListener("storage", (event) => {
@@ -948,7 +949,15 @@ export function createDemoStore(options = {}) {
       actionTokenExpires = 0;
       if (identityStorage?.removeItem) identityStorage.removeItem(IDENTITY_DEMO_STORAGE_KEY);
       if (sharedStorage?.removeItem) sharedStorage.removeItem(SHARED_DEMO_STORAGE_KEY);
-      seedActiveDrill();
+      if (startIdle) {
+        incident = null;
+        acknowledgements = [];
+        resolutionApprovals = [];
+        mapState = emptyMapState();
+        adminQueue = emptyAdminQueue();
+      } else {
+        seedActiveDrill();
+      }
       emit();
       return { ok: true, incident: getActive(), map: getMap(), adminQueue: describeAdminQueue() };
     },
